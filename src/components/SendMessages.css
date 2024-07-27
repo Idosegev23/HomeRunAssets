@@ -1,0 +1,64 @@
+/* SendMessages.css */
+.send-messages-container {
+    direction: rtl;
+  }
+  
+  .header {
+    margin-bottom: 2rem;
+  }
+  
+  .customer-list-paper {
+    padding: 1rem;
+    height: 70vh;
+    overflow: auto;
+  }
+  
+  .message-editor-paper {
+    padding: 1rem;
+  }
+  
+  .customer-card {
+    margin-bottom: 1rem;
+    transition: transform 0.3s ease-in-out, box-shadow 0.3s ease-in-out;
+  }
+  
+  .customer-card:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+  }
+  
+  .customer-info {
+    display: flex;
+    align-items: center;
+  }
+  
+  .customer-actions {
+    display: flex;
+    justify-content: flex-end;
+  }
+  
+  .template-select {
+    margin-bottom: 1rem;
+  }
+  
+  .message-textarea {
+    margin-bottom: 1rem;
+  }
+  
+  .draft-actions {
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 1rem;
+  }
+  
+  .send-button {
+    margin-top: 1rem;
+  }
+  
+  .progress-bar {
+    margin-top: 1rem;
+  }
+  
+  .cancel-button {
+    margin-top: 1rem;
+  }
