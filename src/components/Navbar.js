@@ -1,9 +1,7 @@
 import React from 'react';
-import { 
-  AppBar, Toolbar, Typography, Button, Box, Divider
-} from '@mui/material';
+import { AppBar, Toolbar, Typography, Button, Box, Divider } from '@mui/material';
 import { Link as RouterLink, useLocation } from 'react-router-dom';
-import { styled } from '@mui/material/styles';
+import { makeStyles } from '@mui/styles';
 import { 
   Home as HomeIcon, 
   Business as BusinessIcon, 
@@ -15,7 +13,7 @@ import {
   HomeWork as HomeWorkIcon
 } from '@mui/icons-material';
 
-const useStyles = styled((theme) => ({
+const useStyles = makeStyles((theme) => ({
   appBar: {
     backgroundColor: '#4a90e2',
     boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
@@ -100,36 +98,28 @@ const Navbar = () => {
   ];
 
   return (
-    <>
-      <AppBar 
-        position="fixed" 
-        className={classes.appBar}
-        dir="rtl"
-      >
-        <Toolbar className={classes.toolbar}>
-          <Typography variant="h6" className={classes.title}>
-            HomeRun נדל"ן
-          </Typography>
-          <Box className={classes.navLinks}>
-            {navItems.map((item, index) => (
-              <React.Fragment key={item.path}>
-                <Button
-                  component={RouterLink}
-                  to={item.path}
-                  className={`${classes.link} ${location.pathname === item.path ? classes.activeLink : ''}`}
-                >
-                  <span className={classes.buttonText}>{item.label}</span>
-                  {item.icon}
-                </Button>
-                {index < navItems.length - 1 && <Divider orientation="vertical" flexItem className={classes.divider} />}
-              </React.Fragment>
-            ))}
-          </Box>
-        </Toolbar>
-      </AppBar>
-      <Toolbar />
-      <Toolbar /> {/* Double spacer to account for the taller navbar */}
-    </>
+    <AppBar position="sticky" className={classes.appBar}>
+      <Toolbar className={classes.toolbar}>
+        <Typography variant="h6" className={classes.title}>
+          HomeRun נדל"ן
+        </Typography>
+        <Box className={classes.navLinks}>
+          {navItems.map((item, index) => (
+            <React.Fragment key={item.path}>
+              <Button
+                component={RouterLink}
+                to={item.path}
+                className={`${classes.link} ${location.pathname === item.path ? classes.activeLink : ''}`}
+              >
+                <span className={classes.buttonText}>{item.label}</span>
+                {item.icon}
+              </Button>
+              {index < navItems.length - 1 && <Divider orientation="vertical" flexItem className={classes.divider} />}
+            </React.Fragment>
+          ))}
+        </Box>
+      </Toolbar>
+    </AppBar>
   );
 };
 
