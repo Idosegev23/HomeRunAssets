@@ -1,7 +1,7 @@
 import React from 'react';
 import { AppBar, Toolbar, Typography, Button, Box, Divider } from '@mui/material';
 import { Link as RouterLink, useLocation } from 'react-router-dom';
-import { makeStyles } from '@mui/styles';
+import { styled } from '@mui/material/styles';
 import { 
   Home as HomeIcon, 
   Business as BusinessIcon, 
@@ -13,7 +13,7 @@ import {
   HomeWork as HomeWorkIcon
 } from '@mui/icons-material';
 
-const useStyles = makeStyles((theme) => ({
+const useStyles = styled((theme) => ({
   appBar: {
     backgroundColor: '#4a90e2',
     boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
