@@ -14,11 +14,11 @@ import {
   CircularProgress,
   Snackbar
 } from '@mui/material';
-import { makeStyles } from '@mui/styles';
+import { styled } from '@mui/material/styles';
 import axios from 'axios';
 import MuiAlert from '@mui/material/Alert';
 
-const useStyles = makeStyles((theme) => ({
+const useStyles = styled((theme) => ({
   chatContainer: {
     height: '400px',
     overflowY: 'auto',
