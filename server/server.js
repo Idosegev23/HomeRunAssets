@@ -24,11 +24,29 @@ const GREENAPI_APITOKENINSTANCE = '3d5b3813c614437baea72c0e825205f22d19bf84baf34
 const GREENAPI_BASE_URL = `https://api.greenapi.com/waInstance${GREENAPI_ID}`;
 
 // הגדרת CORS
+const cors = require('cors');
+
+const allowedOrigins = [
+  'https://home-run-assets.vercel.app', // האתר הפרוס שלך ב-Vercel
+  'http://localhost:3000' // לשימוש מקומי בזמן פיתוח
+];
+
 app.use(cors({
-  origin: 'http://localhost:3000',
-  credentials: true
+  origin: function(origin, callback){
+    // אם אין origin (למשל, ב-curl או Postman), אפשר לאשר
+    if (!origin) return callback(null, true);
+
+    // בדוק אם ה-origin נמצא ברשימת המורשים
+    if (allowedOrigins.indexOf(origin) === -1) {
+      const msg = 'The CORS policy for this site does not allow access from the specified Origin.';
+      return callback(new Error(msg), false);
+    }
+
+    return callback(null, true);
+  },
+  credentials: true // כדי לאפשר שליחת cookies או headers מסוימים
 }));
-app.use(express.json());
+
 
 // הגדרת Rate Limiting
 const apiLimiter = rateLimit({
