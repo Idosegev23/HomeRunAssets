@@ -1,4 +1,3 @@
-// CustomerList.js
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import api from '../utils/api';
@@ -27,6 +26,7 @@ import CustomerTable from './CustomerTable';
 import CustomerFilterDialog from './CustomerFilterDialog';
 import MatchingPropertiesDialog from './MatchingPropertiesDialog';
 import CustomerEditDialog from './CustomerEditDialog';
+import { useMatchingProperties } from '../hooks/useMatchingProperties';
 import './CustomerList.css';
 
 // יצירת קאש RTL
@@ -60,9 +60,7 @@ const Root = styled('div')(({ theme }) => ({
 const CustomerList = () => {
   const navigate = useNavigate();
   const [customers, setCustomers] = useState([]);
-  const [properties, setProperties] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
   const [filters, setFilters] = useState({
     First_name: '',
     Last_name: '',
@@ -77,39 +75,28 @@ const CustomerList = () => {
   const [sortConfig, setSortConfig] = useState({ key: 'First_name', direction: 'asc' });
   const [openFilterDialog, setOpenFilterDialog] = useState(false);
   const [openMatchingPropertiesDialog, setOpenMatchingPropertiesDialog] = useState(false);
-  const [matchingProperties, setMatchingProperties] = useState([]);
   const [selectedCustomer, setSelectedCustomer] = useState(null);
   const [editingCustomer, setEditingCustomer] = useState(null);
   const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'info' });
+
+  const { matchingProperties, loading: loadingProperties, error: propertiesError, findMatchingProperties } = useMatchingProperties();
 
   const fetchCustomers = useCallback(async () => {
     try {
       setLoading(true);
       const response = await api.get('/customers');
       setCustomers(response.data);
-      setError(null);
+      setSnackbar({ open: true, message: 'רשימת הלקוחות נטענה בהצלחה', severity: 'success' });
     } catch (err) {
-      setError(`שגיאה בטעינת הלקוחות: ${err.message}`);
       setSnackbar({ open: true, message: `שגיאה בטעינת הלקוחות: ${err.message}`, severity: 'error' });
     } finally {
       setLoading(false);
     }
   }, []);
 
-  const fetchProperties = useCallback(async () => {
-    try {
-      const response = await api.get('/properties');
-      setProperties(response.data);
-    } catch (err) {
-      setError(`שגיאה בטעינת הנכסים: ${err.message}`);
-      setSnackbar({ open: true, message: `שגיאה בטעינת הנכסים: ${err.message}`, severity: 'error' });
-    }
-  }, []);
-
   useEffect(() => {
     fetchCustomers();
-    fetchProperties();
-  }, [fetchCustomers, fetchProperties]);
+  }, [fetchCustomers]);
 
   const handleSort = useCallback((key) => {
     setSortConfig(prevConfig => ({
@@ -124,7 +111,6 @@ const CustomerList = () => {
 
   const applyFilters = useCallback(() => {
     setOpenFilterDialog(false);
-    // כאן ניתן להוסיף לוגיקה נוספת לסינון הלקוחות
   }, []);
 
   const clearFilters = useCallback(() => {
@@ -141,101 +127,51 @@ const CustomerList = () => {
     });
   }, []);
 
-  const findMatchingProperties = useCallback((customer) => {
-    if (!properties || properties.length === 0) {
-      setSnackbar({ open: true, message: 'אין נתוני נכסים זמינים', severity: 'warning' });
-      return;
-    }
-  
-    console.log('Customer:', customer);
-    console.log('All properties:', properties);
-  
-    const matches = properties.map(property => {
-      const propertyPrice = Number(property.price);
-      const customerBudget = Number(customer.Budget);
-      
-      // בדיקת התאמת מחיר
-      const priceMatch = propertyPrice <= customerBudget * 1.1 && propertyPrice >= customerBudget * 0.9;
-      
-      // חישוב רמות התאמה לפרמטרים אחרים
-      const roomsMatch = calculateMatchLevel(Number(property.rooms), Number(customer.Rooms));
-      const cityMatch = calculateCityMatchLevel(property.city, customer.City, customer.Area);
-      const floorMatch = calculateMatchLevel(Number(property.floor), Number(customer.Preferred_floor));
-      const sizeMatch = calculateMatchLevel(Number(property.square_meters), Number(customer.Square_meters));
-  
-      // חישוב אחוז התאמה כולל
-      const totalMatchPercentage = calculateTotalMatchPercentage(priceMatch, roomsMatch, cityMatch, floorMatch, sizeMatch);
-  
-      return {
-        property,
-        priceMatch,
-        roomsMatch,
-        cityMatch,
-        floorMatch,
-        sizeMatch,
-        totalMatchPercentage
-      };
-    }).filter(match => match.priceMatch) // סינון רק נכסים שמתאימים למחיר
-      .sort((a, b) => b.totalMatchPercentage - a.totalMatchPercentage); // מיון לפי אחוז התאמה יורד
-  
-    console.log('Matching properties:', matches);
-  
-    setMatchingProperties(matches);
+  const handleFindProperties = useCallback(async (customer) => {
     setSelectedCustomer(customer);
+    await findMatchingProperties(customer);
     setOpenMatchingPropertiesDialog(true);
-  }, [properties]);
-  
-  // פונקציות עזר
-  
-  const calculateMatchLevel = (propertyValue, customerValue) => {
-    const diff = Math.abs(propertyValue - customerValue);
-    if (diff === 0) return 'מלאה';
-    if (diff <= 1) return 'חלקית';
-    return 'ללא';
-  };
-  
-  const calculateCityMatchLevel = (propertyCity, customerCity, customerArea) => {
-    if (propertyCity.toLowerCase() === customerCity.toLowerCase()) return 'מלאה';
-    if (propertyCity.toLowerCase().includes(customerArea.toLowerCase()) ||
-        customerArea.toLowerCase().includes(propertyCity.toLowerCase())) return 'חלקית';
-    return 'ללא';
-  };
-  
-  const calculateTotalMatchPercentage = (priceMatch, roomsMatch, cityMatch, floorMatch, sizeMatch) => {
-    let total = priceMatch ? 50 : 0; // מחיר מהווה 50% מהציון הכולל
-    total += getMatchScore(roomsMatch);
-    total += getMatchScore(cityMatch);
-    total += getMatchScore(floorMatch);
-    total += getMatchScore(sizeMatch);
-    return total;
-  };
-  
-  const getMatchScore = (matchLevel) => {
-    switch (matchLevel) {
-      case 'מלאה': return 12.5; // כל פרמטר אחר מהווה עד 12.5% מהציון הכולל
-      case 'חלקית': return 6.25;
-      default: return 0;
-    }
+  }, [findMatchingProperties]);
+
+  // פונקציה עזר לניקוי אובייקט מפונקציות ומחזוריות
+  const cleanObject = (obj) => {
+    return JSON.parse(JSON.stringify(obj));
   };
 
-  const handleSendMessage = useCallback((customer, property = null) => {
-    console.log('Sending message to customer:', customer);
-    console.log('Selected property:', property);
-    console.log('Matching properties:', matchingProperties);
-
+  const handleSendMessage = useCallback(async (customer, selectedProperties = []) => {
     if (!customer) {
       setSnackbar({ open: true, message: 'לא נבחר לקוח', severity: 'error' });
       return;
     }
+  
+    if (selectedProperties.length === 0) {
+      setSnackbar({ open: true, message: 'לא נבחרו נכסים', severity: 'error' });
+      return;
+    }
 
-    navigate('/send-messages', { 
-      state: { 
-        selectedCustomer: customer,
-        selectedProperty: property || matchingProperties[0]?.property,
-        eligibleCustomers: [customer], // שינוי זה: העבר רק את הלקוח הנבחר כמערך
-        matchingProperties: matchingProperties
-      } 
-    });
+    try {
+      // נקה את האובייקטים מפונקציות ומחזוריות
+      const cleanCustomer = cleanObject(customer);
+      const cleanProperties = await Promise.all(
+        selectedProperties.map(async (id) => {
+          const response = await api.get(`/properties/${id}`);
+          return cleanObject(response.data);
+        })
+      );
+      const cleanMatchingProperties = cleanObject(matchingProperties);
+
+      navigate('/send-messages', { 
+        state: { 
+          selectedCustomer: cleanCustomer,
+          selectedProperties: cleanProperties,
+          eligibleCustomers: [cleanCustomer],
+          matchingProperties: cleanMatchingProperties
+        } 
+      });
+    } catch (error) {
+      console.error('Error preparing data for navigation:', error);
+      setSnackbar({ open: true, message: 'שגיאה בהכנת הנתונים לשליחת הודעות', severity: 'error' });
+    }
   }, [navigate, matchingProperties]);
 
   const saveCustomer = useCallback(async (customer) => {
@@ -250,7 +186,6 @@ const CustomerList = () => {
       setEditingCustomer(null);
       fetchCustomers();
     } catch (err) {
-      setError(`שגיאה בשמירת הלקוח: ${err.message}`);
       setSnackbar({ open: true, message: `שגיאה בשמירת הלקוח: ${err.message}`, severity: 'error' });
     }
   }, [fetchCustomers]);
@@ -305,7 +240,7 @@ const CustomerList = () => {
                   sortConfig={sortConfig}
                   onSort={handleSort}
                   onEdit={setEditingCustomer}
-                  onFindProperties={findMatchingProperties}
+                  onFindProperties={handleFindProperties}
                   onSendMessage={handleSendMessage}
                 />
               </Paper>
@@ -327,6 +262,8 @@ const CustomerList = () => {
             matchingProperties={matchingProperties}
             selectedCustomer={selectedCustomer}
             onSendMessage={handleSendMessage}
+            loading={loadingProperties}
+            error={propertiesError}
           />
 
           <CustomerEditDialog

@@ -12,6 +12,7 @@ import SendIcon from '@mui/icons-material/Send';
 import RefreshIcon from '@mui/icons-material/Refresh';
 import ViewModuleIcon from '@mui/icons-material/ViewModule';
 import ViewListIcon from '@mui/icons-material/ViewList';
+import EditIcon from '@mui/icons-material/Edit';
 import rtlPlugin from 'stylis-plugin-rtl';
 import { CacheProvider } from '@emotion/react';
 import createCache from '@emotion/cache';
@@ -202,8 +203,8 @@ const PropertyList = () => {
     setSelectedProperty(property);
   };
 
-  const handleSendMessages = (property) => {
-    console.log("handleSendMessages started", property);
+  const handleSendMessagesToMultipleCustomers = (property) => {
+    console.log("handleSendMessagesToMultipleCustomers started", property);
   
     if (!property) {
       console.error("Property data is missing");
@@ -222,9 +223,16 @@ const PropertyList = () => {
     console.log("Navigating to /send-messages");
     navigate('/send-messages', { 
       state: { 
-        selectedProperty: property,
+        selectedProperties: [property],
         eligibleCustomers: eligibleCustomers
       } 
+    });
+  };
+
+  const handleEditProperty = (property) => {
+    console.log("Editing property:", property);
+    navigate(`/edit-property/${property.id}`, {
+      state: { property }
     });
   };
 
@@ -319,14 +327,16 @@ const PropertyList = () => {
                 properties={sortedProperties}
                 handlePropertySelect={handlePropertySelect}
                 selectedProperty={selectedProperty}
-                handleSendMessages={handleSendMessages}
+                handleSendMessages={handleSendMessagesToMultipleCustomers}
+                handleEditProperty={handleEditProperty}
                 sortConfig={sortConfig}
                 handleSort={handleSort}
               />
             ) : (
               <PLCardView 
                 properties={sortedProperties}
-                handleSendMessages={handleSendMessages}
+                handleSendMessages={handleSendMessagesToMultipleCustomers}
+                handleEditProperty={handleEditProperty}
               />
             )}
 

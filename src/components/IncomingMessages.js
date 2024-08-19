@@ -14,6 +14,8 @@ import {
   Grid,
   Alert,
   IconButton,
+  ThemeProvider,
+  createTheme,
 } from '@mui/material';
 import {
   Search as SearchIcon,
@@ -32,6 +34,14 @@ import createCache from '@emotion/cache';
 const cacheRtl = createCache({
   key: 'muirtl',
   stylisPlugins: [prefixer, rtlPlugin],
+});
+
+// Create RTL theme
+const theme = createTheme({
+  direction: 'rtl',
+  typography: {
+    fontFamily: 'Rubik, Arial, sans-serif',
+  },
 });
 
 const StyledCard = styled(Card)(({ theme }) => ({
@@ -55,9 +65,15 @@ const IncomingMessages = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedMessage, setSelectedMessage] = useState(null);
   const [replyText, setReplyText] = useState('');
+  const [tags, setTags] = useState([]);
+  const [tasks, setTasks] = useState([]);
 
   useEffect(() => {
     fetchMessages();
+    const savedTags = JSON.parse(localStorage.getItem('tags')) || [];
+    const savedTasks = JSON.parse(localStorage.getItem('tasks')) || [];
+    setTags(savedTags);
+    setTasks(savedTasks);
   }, []);
 
   const fetchMessages = async () => {
@@ -65,7 +81,7 @@ const IncomingMessages = () => {
       setLoading(true);
       setError(null);
       const response = await axios.get('http://localhost:5001/api/lastIncomingMessages');
-      console.log('Received messages:', response.data);
+      console.log('Fetched messages:', response.data);
       const sortedMessages = response.data.sort((a, b) => b.timestamp - a.timestamp);
       setMessages(sortedMessages);
       setFilteredMessages(sortedMessages);
@@ -82,26 +98,51 @@ const IncomingMessages = () => {
     setSearchTerm(term);
     const filtered = messages.filter(
       (message) =>
-        message.senderName.toLowerCase().includes(term.toLowerCase()) ||
-        message.textMessage.toLowerCase().includes(term.toLowerCase())
+        message.senderName?.toLowerCase().includes(term.toLowerCase()) ||
+        message.textMessage?.toLowerCase().includes(term.toLowerCase())
     );
     setFilteredMessages(filtered);
   };
 
   const handleReply = async () => {
-    if (!selectedMessage || !replyText) return;
+    if (!selectedMessage || !replyText) {
+      console.log('Missing selectedMessage or replyText');
+      return;
+    }
     try {
-      await axios.post('http://localhost:5001/api/sendMessage', {
-        chatId: selectedMessage.chatId,
-        message: replyText,
+      console.log('Selected message:', selectedMessage);
+      if (!selectedMessage.senderData || !selectedMessage.senderData.sender) {
+        console.error('Invalid selectedMessage structure:', selectedMessage);
+        setError('שגיאה: מבנה ההודעה הנבחרת אינו תקין');
+        return;
+      }
+      const phoneNumber = selectedMessage.senderData.sender.replace('@c.us', '');
+      console.log('Phone number to send:', phoneNumber);
+      const response = await axios.post('http://localhost:5001/api/sendMessage', {
+        phoneNumber: phoneNumber,
+        text: replyText,
       });
+      console.log('Server response:', response.data);
       setReplyText('');
       setSelectedMessage(null);
-      // Optionally, update the message in the list to show it's been replied to
-      fetchMessages(); // Refresh the messages list
+      fetchMessages();
     } catch (err) {
-      setError('שגיאה בשליחת התשובה. אנא נסה שנית.');
+      console.error('Error sending message:', err);
+      console.error('Error details:', err.response?.data);
+      setError(err.response?.data?.error || 'שגיאה בשליחת התשובה. אנא נסה שנית.');
     }
+  };
+
+  const handleAddTag = (messageId, tagText) => {
+    const newTags = [...tags, { messageId, text: tagText }];
+    setTags(newTags);
+    localStorage.setItem('tags', JSON.stringify(newTags));
+  };
+
+  const handleAddTask = (messageId, taskText) => {
+    const newTasks = [...tasks, { messageId, text: taskText, completed: false }];
+    setTasks(newTasks);
+    localStorage.setItem('tasks', JSON.stringify(newTasks));
   };
 
   const formatTimestamp = (timestamp) => {
@@ -122,110 +163,112 @@ const IncomingMessages = () => {
 
   return (
     <CacheProvider value={cacheRtl}>
-      <Box sx={{ p: 3, direction: 'rtl' }}>
-        <Typography variant="h4" gutterBottom>
-          הודעות נכנסות
-          <IconButton onClick={fetchMessages} color="primary" sx={{ mr: 2 }}>
-            <RefreshIcon />
-          </IconButton>
-        </Typography>
-        <TextField
-          fullWidth
-          variant="outlined"
-          placeholder="חיפוש הודעות..."
-          value={searchTerm}
-          onChange={handleSearch}
-          InputProps={{
-            startAdornment: <SearchIcon />,
-          }}
-          sx={{ mb: 2 }}
-        />
-        <Grid container spacing={2}>
-          <Grid item xs={12} md={6}>
-            {loading ? (
-              <Box display="flex" justifyContent="center" alignItems="center" height="200px">
-                <CircularProgress />
-              </Box>
-            ) : error ? (
-              <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>
-            ) : filteredMessages.length > 0 ? (
-              <List>
-                {filteredMessages.map((message) => (
-                  <StyledCard key={message.id} onClick={() => setSelectedMessage(message)}>
-                    <CardContent>
-                      <Typography variant="h6">{message.senderName}</Typography>
-                      <Typography variant="body2" color="textSecondary">
-                        {formatTimestamp(message.timestamp)}
-                      </Typography>
-                      <Typography variant="body1">{message.textMessage}</Typography>
-                      <Box sx={{ mt: 1 }}>
-                        <StyledChip
-                          icon={<CheckCircleIcon />}
-                          label="סומן כטופל"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            // Handle marking as handled
-                          }}
-                        />
-                        <StyledChip
-                          icon={<LabelIcon />}
-                          label="תייג"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            // Handle tagging
-                          }}
-                        />
-                      </Box>
-                    </CardContent>
-                  </StyledCard>
-                ))}
-              </List>
-            ) : (
-              <Typography>אין הודעות להצגה</Typography>
-            )}
+      <ThemeProvider theme={theme}>
+        <Box sx={{ p: 3 }}>
+          <Typography variant="h4" gutterBottom>
+            הודעות נכנסות
+            <IconButton onClick={fetchMessages} color="primary" sx={{ mr: 2 }}>
+              <RefreshIcon />
+            </IconButton>
+          </Typography>
+          <TextField
+            fullWidth
+            variant="outlined"
+            placeholder="חיפוש הודעות..."
+            value={searchTerm}
+            onChange={handleSearch}
+            InputProps={{
+              startAdornment: <SearchIcon />,
+            }}
+            sx={{ mb: 2 }}
+          />
+          <Grid container spacing={2}>
+            <Grid item xs={12} md={6}>
+              {loading ? (
+                <Box display="flex" justifyContent="center" alignItems="center" height="200px">
+                  <CircularProgress />
+                </Box>
+              ) : error ? (
+                <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>
+              ) : filteredMessages.length > 0 ? (
+                <List>
+                  {filteredMessages.map((message) => (
+                    <StyledCard key={message.idMessage} onClick={() => setSelectedMessage(message)}>
+                      <CardContent>
+                        <Typography variant="h6">{message.senderName}</Typography>
+                        <Typography variant="body2" color="textSecondary">
+                          {formatTimestamp(message.timestamp)}
+                        </Typography>
+                        <Typography variant="body1">{message.textMessage}</Typography>
+                        <Box sx={{ mt: 1 }}>
+                          <StyledChip
+                            icon={<CheckCircleIcon />}
+                            label="סמן כמשימה"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleAddTask(message.idMessage, "משימה חדשה: " + message.textMessage.substring(0, 30));
+                            }}
+                          />
+                          <StyledChip
+                            icon={<LabelIcon />}
+                            label="תייג"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleAddTag(message.idMessage, "תיוג חדש");
+                            }}
+                          />
+                        </Box>
+                      </CardContent>
+                    </StyledCard>
+                  ))}
+                </List>
+              ) : (
+                <Typography>אין הודעות להצגה</Typography>
+              )}
+            </Grid>
+            <Grid item xs={12} md={6}>
+              {selectedMessage && (
+                <Card>
+                  <CardContent>
+                    <Typography variant="h6">תשובה להודעה</Typography>
+                    <Typography variant="body2" color="textSecondary">
+                      {getTimeSinceLastMessage(selectedMessage.timestamp)}
+                    </Typography>
+                    <TextField
+                      fullWidth
+                      multiline
+                      rows={4}
+                      variant="outlined"
+                      value={replyText}
+                      onChange={(e) => setReplyText(e.target.value)}
+                      placeholder="הקלד את תשובתך כאן..."
+                      sx={{ my: 2 }}
+                    />
+                    <Button
+                      variant="contained"
+                      color="primary"
+                      onClick={handleReply}
+                      startIcon={<ReplyIcon />}
+                      disabled={!replyText.trim()}
+                    >
+                      שלח תשובה
+                    </Button>
+                  </CardContent>
+                </Card>
+              )}
+            </Grid>
           </Grid>
-          <Grid item xs={12} md={6}>
-            {selectedMessage && (
-              <Card>
-                <CardContent>
-                  <Typography variant="h6">תשובה להודעה</Typography>
-                  <Typography variant="body2" color="textSecondary">
-                    {getTimeSinceLastMessage(selectedMessage.timestamp)}
-                  </Typography>
-                  <TextField
-                    fullWidth
-                    multiline
-                    rows={4}
-                    variant="outlined"
-                    value={replyText}
-                    onChange={(e) => setReplyText(e.target.value)}
-                    placeholder="הקלד את תשובתך כאן..."
-                    sx={{ my: 2 }}
-                  />
-                  <Button
-                    variant="contained"
-                    color="primary"
-                    onClick={handleReply}
-                    startIcon={<ReplyIcon />}
-                    disabled={!replyText.trim()}
-                  >
-                    שלח תשובה
-                  </Button>
-                </CardContent>
-              </Card>
-            )}
-          </Grid>
-        </Grid>
-        <Snackbar
-          open={!!error}
-          autoHideDuration={6000}
-          onClose={() => setError(null)}
-        >
-          <Alert onClose={() => setError(null)} severity="error">
-            {error}
-          </Alert>
-        </Snackbar>
-      </Box>
+          <Snackbar
+            open={!!error}
+            autoHideDuration={6000}
+            onClose={() => setError(null)}
+          >
+            <Alert onClose={() => setError(null)} severity="error">
+              {error}
+            </Alert>
+          </Snackbar>
+        </Box>
+      </ThemeProvider>
     </CacheProvider>
   );
 };

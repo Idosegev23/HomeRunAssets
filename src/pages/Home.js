@@ -13,10 +13,7 @@ import {
   createTheme,
   responsiveFontSizes,
   Snackbar,
-  Alert,
-  List,
-  ListItem,
-  ListItemText
+  Alert
 } from '@mui/material';
 import { styled, useTheme } from '@mui/material/styles';
 import { Link as RouterLink } from 'react-router-dom';
@@ -157,7 +154,12 @@ const Home = () => {
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
   const [properties, setProperties] = useState([]);
   const [customers, setCustomers] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [unreadMessages, setUnreadMessages] = useState(0);
+  const [loading, setLoading] = useState({
+    properties: true,
+    customers: true,
+    messages: true
+  });
   const [growthData, setGrowthData] = useState(null);
   const [quoteOfDay, setQuoteOfDay] = useState('');
   const [snackbarOpen, setSnackbarOpen] = useState(false);
@@ -170,62 +172,84 @@ const Home = () => {
     setSnackbarOpen(false);
   };
 
+  const fetchProperties = async () => {
+    try {
+      const response = await axios.get('http://localhost:5001/api/properties');
+      console.log('Properties fetched:', response.data);
+      setProperties(response.data);
+    } catch (error) {
+      console.error('Error fetching properties:', error);
+      setSnackbarMessage('שגיאה בטעינת נכסים');
+      setSnackbarSeverity('error');
+      setSnackbarOpen(true);
+    } finally {
+      setLoading(prev => ({ ...prev, properties: false }));
+    }
+  };
+
+  const fetchCustomers = async () => {
+    try {
+      const response = await axios.get('http://localhost:5001/api/customers');
+      console.log('Customers fetched:', response.data);
+      setCustomers(response.data);
+    } catch (error) {
+      console.error('Error fetching customers:', error);
+      setSnackbarMessage('שגיאה בטעינת לקוחות');
+      setSnackbarSeverity('error');
+      setSnackbarOpen(true);
+    } finally {
+      setLoading(prev => ({ ...prev, customers: false }));
+    }
+  };
+
+  const fetchUnreadMessages = async () => {
+    try {
+      const response = await axios.get('http://localhost:5001/api/messages/unread');
+      console.log('Unread messages count:', response.data);
+      setUnreadMessages(response.data.count);
+    } catch (error) {
+      console.error('Error fetching unread messages:', error);
+      setSnackbarMessage('שגיאה בטעינת הודעות לא נקראות');
+      setSnackbarSeverity('error');
+      setSnackbarOpen(true);
+    } finally {
+      setLoading(prev => ({ ...prev, messages: false }));
+    }
+  };
+
   useEffect(() => {
-    const fetchData = async () => {
-      try {
-        const [propertiesRes, customersRes] = await Promise.all([
-          axios.get('http://localhost:5001/api/properties'),
-          axios.get('http://localhost:5001/api/customers')
-        ]);
+    fetchProperties();
+    fetchCustomers();
+    fetchUnreadMessages();
 
-        setProperties(propertiesRes.data);
-        setCustomers(customersRes.data);
-        setLoading(false);
+    // Simulated growth data (replace with real data in production)
+    setGrowthData({
+      labels: ['ינואר', 'פברואר', 'מרץ', 'אפריל', 'מאי', 'יוני'],
+      datasets: [
+        {
+          label: 'נכסים',
+          data: [12, 19, 3, 5, 2, 3],
+          borderColor: theme.palette.primary.main,
+          tension: 0.1,
+        },
+        {
+          label: 'לקוחות',
+          data: [1, 2, 5, 3, 2, 4],
+          borderColor: theme.palette.secondary.main,
+          tension: 0.1,
+        },
+      ],
+    });
 
-        // Simulated growth data (replace with real data in production)
-        setGrowthData({
-          labels: ['ינואר', 'פברואר', 'מרץ', 'אפריל', 'מאי', 'יוני'],
-          datasets: [
-            {
-              label: 'נכסים',
-              data: [12, 19, 3, 5, 2, 3],
-              borderColor: theme.palette.primary.main,
-              tension: 0.1,
-            },
-            {
-              label: 'לקוחות',
-              data: [1, 2, 5, 3, 2, 4],
-              borderColor: theme.palette.secondary.main,
-              tension: 0.1,
-            },
-          ],
-        });
-
-        // ציטוטים מעוררי השראה בעברית
-        const quotes = [
-          "הדרך הטובה ביותר לחזות את העתיד היא ליצור אותו. - פיטר דרוקר",
-          "ההצלחה היא לא המפתח לאושר. האושר הוא המפתח להצלחה. - אלברט שווייצר",
-          "אל תשפוט כל יום לפי מה שקצרת, אלא לפי הזרעים שזרעת. - רוברט לואיס סטיבנסון",
-          "ההזדמנות הגדולה ביותר שלך להצליח נמצאת במקום שבו אתה נמצא עכשיו. - נפוליאון היל",
-          "אל תפחד מהשינוי. אתה עלול לאבד משהו טוב, אבל אתה עלול לזכות במשהו טוב יותר. - עידו מור",
-          "הדרך הטובה ביותר לנבא את העתיד היא ליצור אותו. - אלן קיי",
-          "אם אתה רוצה להגיע מהר, לך לבד. אם אתה רוצה להגיע רחוק, לך ביחד. - פתגם אפריקאי",
-          "החיים הם 10% מה שקורה לך ו-90% איך אתה מגיב לזה. - צ'ארלס סווינדול",
-          "כל הצלחה מתחילה בהחלטה לנסות. - גייל דיוורס",
-          "אל תחכה. הזמן לעולם לא יהיה מושלם. - נפוליאון היל",
-        ];
-        setQuoteOfDay(quotes[Math.floor(Math.random() * quotes.length)]);
-
-      } catch (error) {
-        console.error('Error fetching data:', error);
-        setSnackbarMessage('שגיאה בטעינת הנתונים');
-        setSnackbarSeverity('error');
-        setSnackbarOpen(true);
-        setLoading(false);
-      }
-    };
-
-    fetchData();
+    // ציטוטים מעוררי השראה בעברית
+    const quotes = [
+      "הדרך הטובה ביותר לחזות את העתיד היא ליצור אותו. - פיטר דרוקר",
+      "ההצלחה היא לא המפתח לאושר. האושר הוא המפתח להצלחה. - אלברט שווייצר",
+      "אל תשפוט כל יום לפי מה שקצרת, אלא לפי הזרעים שזרעת. - רוברט לואיס סטיבנסון",
+      "ההזדמנות הגדולה ביותר שלך להצליח נמצאת במקום שבו אתה נמצא עכשיו. - נפוליאון היל",
+      "אל תפחד מהשינוי. אתה עלול לאבד משהו טוב, אבל אתה עלול לזכות במשהו טוב יותר. - עידו מור",
+    ];
+    setQuoteOfDay(quotes[Math.floor(Math.random() * quotes.length)]);
   }, [theme.palette.primary.main, theme.palette.secondary.main]);
 
   const chartOptions = {
@@ -249,7 +273,7 @@ const Home = () => {
     },
   };
 
-  if (loading) {
+  if (loading.properties || loading.customers || loading.messages) {
     return (
       <Box display="flex" justifyContent="center" alignItems="center" height="100vh">
         <CircularProgress />
@@ -313,27 +337,26 @@ const Home = () => {
             </Grid>
             
             <Grid item xs={12} md={4}>
-              <ConstructionPaper>
-                <ConstructionLabel>בבנייה</ConstructionLabel>
+              <AnimatedCard variants={cardVariants} initial="hidden" animate="visible">
                 <CardContent>
                   <MessageIcon fontSize="large" color="info" />
-                  <CounterTypography>0</CounterTypography>
+                  <CounterTypography>{unreadMessages}</CounterTypography>
                   <Typography variant="h6">הודעות חדשות</Typography>
                   <StyledButton
-                    aria-label="צפה בהודעות"
+                    aria-label="צפה בהודעות חדשות"
                     variant="contained"
                     color="info"
                     component={RouterLink}
-                    to="/building"
+                    to="/incoming-messages"
                     startIcon={<MessageIcon />}
                   >
-                    צפה בהודעות
+                    צפה בהודעות חדשות
                   </StyledButton>
                 </CardContent>
-              </ConstructionPaper>
+              </AnimatedCard>
             </Grid>
             
-            <Grid item xs={12} md={6}>
+            <Grid item xs={12}>
               <StyledPaper sx={{ opacity: 0.5, position: 'relative' }}>
                 <ConstructionLabel>בבנייה</ConstructionLabel>
                 <Typography variant="h6" gutterBottom>
@@ -350,29 +373,12 @@ const Home = () => {
                 </Box>
               </StyledPaper>
             </Grid>
-            
-            <Grid item xs={12} md={6}>
-              <ConstructionPaper>
-                <ConstructionLabel>בבנייה</ConstructionLabel>
-                <Typography variant="h6" gutterBottom>
-                  <MessageIcon /> הודעות אחרונות
-                </Typography>
-                <List>
-                  <ListItem>
-                    <ListItemText 
-                      primary="אין הודעות חדשות" 
-                      secondary="" 
-                    />
-                  </ListItem>
-                </List>
-              </ConstructionPaper>
-            </Grid>
           </Grid>
         </Box>
         
         <Snackbar open={snackbarOpen} autoHideDuration={6000} onClose={handleSnackbarClose}>
           <Alert onClose={handleSnackbarClose} severity={snackbarSeverity} sx={{ width: '100%' }}>
-            {snackbarMessage}
+          {snackbarMessage}
           </Alert>
         </Snackbar>
       </ThemeProvider>

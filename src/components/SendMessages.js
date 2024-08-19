@@ -26,7 +26,7 @@ const GREENAPI_APITOKENINSTANCE = '3d5b3813c614437baea72c0e825205f22d19bf84baf34
 const SendMessages = () => {
   const location = useLocation();
   const navigate = useNavigate();
-  const { selectedCustomer, selectedProperty, eligibleCustomers, matchingProperties } = location.state || {};
+  const { selectedCustomer, selectedProperties, eligibleCustomers } = location.state || {};
 
   const [selectedCustomers, setSelectedCustomers] = useState([]);
   const [customMessage, setCustomMessage] = useState('');
@@ -50,91 +50,118 @@ const SendMessages = () => {
       return;
     }
 
-    if (!selectedProperty) {
-      console.error("Missing selectedProperty in SendMessages component");
-      setError("לא נבחר נכס. אנא חזור לדף הנכסים ובחר נכס.");
+    if (!selectedProperties || selectedProperties.length === 0) {
+      console.error("Missing selectedProperties in SendMessages component");
+      setError("לא נבחרו נכסים. אנא חזור לדף הנכסים ובחר נכסים.");
       return;
     }
 
-    // טיפול במקרה של לקוח בודד או מערך לקוחות
     const customers = selectedCustomer ? [selectedCustomer] : (eligibleCustomers || []);
 
     if (customers.length === 0) {
       console.error("No customers available in SendMessages component");
-      setError("לא נמצאו לקוחות מתאימים לנכס זה.");
+      setError("לא נמצאו לקוחות מתאימים לנכסים אלו.");
       return;
     }
 
-    // אם הגענו לכאן, כל הנתונים תקינים
     setSelectedCustomers(customers.map(customer => customer.id));
     setDataReady(true);
-  }, [selectedCustomer, selectedProperty, eligibleCustomers, location.state]);
+  }, [selectedCustomer, selectedProperties, eligibleCustomers, location.state]);
 
   const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
-  const replaceTokens = (message, customer) => {
+  const replaceTokens = (message, customer, property) => {
     const tokens = {
-      '{שם_פרטי}': customer.First_name,
-      '{שם_משפחה}': customer.Last_name,
-      '{תקציב}': customer.Budget,
-      '{אזור}': customer.Area,
-      '{מחיר_נכס}': selectedProperty.price,
-      '{עיר_נכס}': selectedProperty.city,
-      '{רחוב_נכס}': selectedProperty.street,
-      '{מספר_חדרים}': selectedProperty.rooms,
-      '{מר}': selectedProperty.square_meters,
-      '{קומה}': selectedProperty.floor
+        '{שם_פרטי}': customer.First_name,
+        '{שם_משפחה}': customer.Last_name,
+        '{תקציב}': customer.Budget,
+        '{אזור}': customer.Area,
+        '{מחיר_נכס}': property.price,
+        '{עיר_נכס}': property.city,
+        '{רחוב_נכס}': property.street,
+        '{מספר_חדרים}': property.rooms,
+        '{מר}': property.square_meters,
+        '{קומה}': property.floor
     };
 
     return message.replace(/\{.*?\}/g, match => tokens[match] || match);
-  };
+};
+
 
   const handleSendMessages = async () => {
     setOpenConfirmDialog(false);
     setLoading(true);
     setProgress(0);
     setBackgroundSending(true);
+
     const totalCustomers = selectedCustomers.length;
+    const totalProperties = selectedProperties.length;
 
     const sendMessagesInBackground = async () => {
       for (let i = 0; i < totalCustomers; i++) {
-        try {
-          const customerId = selectedCustomers[i];
-          const customer = (selectedCustomer ? [selectedCustomer] : eligibleCustomers).find(c => c.id === customerId);
-          const personalizedMessage = replaceTokens(customMessage, customer);
-          const chatId = `972${customer.Cell}@c.us`;
+        for (let j = 0; j < totalProperties; j++) {
+          try {
+            const customerId = selectedCustomers[i];
+            const customer = eligibleCustomers.find(c => c.id === customerId);
+            const property = selectedProperties[j];
 
-          const response = await fetch(`https://api.green-api.com/waInstance${GREENAPI_ID}/sendMessage/${GREENAPI_APITOKENINSTANCE}`, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({
-              chatId,
-              message: personalizedMessage
-            })
-          });
+            const personalizedMessage = replaceTokens(customMessage, customer, property);
+            const chatId = `972${customer.Cell}@c.us`;
 
-          const data = await response.json();
+            // בדיקה אם ההודעה כבר נשלחה על אותו נכס
+            const responseCheck = await fetch(`https://api.green-api.com/waInstance${GREENAPI_ID}/getChatHistory/${GREENAPI_APITOKENINSTANCE}`, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json'
+              },
+              body: JSON.stringify({
+                chatId: chatId,
+                count: 100
+              })
+            });
 
-          if (!response.ok) {
-            throw new Error(`Error: ${data.error}`);
-          }
+            const dataCheck = await responseCheck.json();
+            const isDuplicate = dataCheck.some(
+              (msg) => msg.textMessage === personalizedMessage
+            );
 
-          setProgress(((i + 1) / totalCustomers) * 100);
-
-          if (i < totalCustomers - 1) {
-            setCountdown(30);
-            setOpenCountdownDialog(true);
-            for (let j = 30; j > 0; j--) {
-              await delay(1000);
-              setCountdown(j - 1);
+            if (isDuplicate) {
+              console.log(`הודעה כבר נשלחה ללקוח על נכס זה: ${property.street}`);
+              continue; // דלג להודעה הבאה אם כבר נשלחה הודעה זהה
             }
-            setOpenCountdownDialog(false);
+
+            const response = await fetch(`https://api.green-api.com/waInstance${GREENAPI_ID}/sendMessage/${GREENAPI_APITOKENINSTANCE}`, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json'
+              },
+              body: JSON.stringify({
+                chatId,
+                message: personalizedMessage
+              })
+            });
+
+            const data = await response.json();
+
+            if (!response.ok) {
+              throw new Error(`Error: ${data.error}`);
+            }
+
+            setProgress(((i * totalProperties + j + 1) / (totalCustomers * totalProperties)) * 100);
+
+            if (j < totalProperties - 1 || i < totalCustomers - 1) {
+              setCountdown(30);
+              setOpenCountdownDialog(true);
+              for (let k = 30; k > 0; k--) {
+                await delay(1000);
+                setCountdown(k - 1);
+              }
+              setOpenCountdownDialog(false);
+            }
+          } catch (err) {
+            console.error(`Error sending message: ${err.message}`);
+            setError(`שגיאה בשליחת ההודעה: ${err.message}`);
           }
-        } catch (err) {
-          console.error(`Error sending message: ${err.message}`);
-          setError(`שגיאה בשליחת ההודעה: ${err.message}`);
         }
       }
 
@@ -202,7 +229,7 @@ const SendMessages = () => {
               שליחת הודעות ללקוחות
             </Typography>
             <Typography variant="h6" align="center" gutterBottom>
-              עבור נכס: {selectedProperty.city}, {selectedProperty.street}
+              עבור נכסים נבחרים
             </Typography>
           </Grid>
         </Grid>
@@ -239,7 +266,7 @@ const SendMessages = () => {
           <DialogTitle>אישור שליחת הודעות</DialogTitle>
           <DialogContent>
             <Typography>
-              האם אתה בטוח שברצונך לשלוח הודעות ל-{selectedCustomers.length} לקוחות?
+              האם אתה בטוח שברצונך לשלוח הודעות ל-{selectedCustomers.length} לקוחות עבור {selectedProperties.length} נכסים נבחרים?
             </Typography>
           </DialogContent>
           <DialogActions>

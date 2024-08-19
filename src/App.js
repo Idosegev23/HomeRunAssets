@@ -14,6 +14,7 @@ import SendMessages from './components/SendMessages';
 import Building from './pages/building';
 import AddCustomer from './pages/AddCustomer';
 import AddProperty from './pages/AddProperty';
+import ChatInterface from './components/ChatInterface'; // הוספת רכיב הצ'אט החי
 import './index.css';
 import IncomingMessages from './components/IncomingMessages';
 
@@ -50,8 +51,8 @@ function App() {
               <Route path="/properties" element={<PropertyList />} />
               <Route path="/customers" element={<CustomerList />} />
               <Route path="/send-messages" element={<SendMessages />} />
-              <Route path="/incoming-messages" element={<Building />} />
-              <Route path="/chat" element={<Building />} />
+              <Route path="/incoming-messages" element={<IncomingMessages />} />
+              <Route path="/chat" element={<ChatInterface />} /> {/* הוספת מסלול לצ'אט החי */}
               <Route path="/building" element={<Building />} />
               <Route path="/add-customer" element={<AddCustomer />} />
               <Route path="/add-property" element={<AddProperty />} />
