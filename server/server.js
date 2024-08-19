@@ -10,43 +10,35 @@ const FormData = require('form-data');
 const fs = require('fs');
 
 const app = express();
-const PORT = 5001;
+const PORT = process.env.PORT || 5001;
 
 // הגדרת Airtable API
-const AIRTABLE_API_KEY = 'patC2ORwELg6ZyiYm.72b542c50b01957c9ea3257edc21c9aeb6968f002d3e0015d273e61817ae3dde';
-const AIRTABLE_BASE_ID = 'app77hvk5g7LD52Nf';
+const AIRTABLE_API_KEY = process.env.AIRTABLE_API_KEY || 'patC2ORwELg6ZyiYm.72b542c50b01957c9ea3257edc21c9aeb6968f002d3e0015d273e61817ae3dde';
+const AIRTABLE_BASE_ID = process.env.AIRTABLE_BASE_ID || 'app77hvk5g7LD52Nf';
 
 const base = new Airtable({ apiKey: AIRTABLE_API_KEY }).base(AIRTABLE_BASE_ID);
 
 // הגדרת Green API
-const GREENAPI_ID = '7103957095';
-const GREENAPI_APITOKENINSTANCE = '3d5b3813c614437baea72c0e825205f22d19bf84baf34365a8';
+const GREENAPI_ID = process.env.GREENAPI_ID || '7103957095';
+const GREENAPI_APITOKENINSTANCE = process.env.GREENAPI_APITOKENINSTANCE || '3d5b3813c614437baea72c0e825205f22d19bf84baf34365a8';
 const GREENAPI_BASE_URL = `https://api.greenapi.com/waInstance${GREENAPI_ID}`;
 
 // הגדרת CORS
-const cors = require('cors');
-
 const allowedOrigins = [
   'https://home-run-assets.vercel.app', // האתר הפרוס שלך ב-Vercel
-  'http://localhost:3000' // לשימוש מקומי בזמן פיתוח
+  'http://localhost:3000' // סביבת פיתוח מקומית
 ];
 
 app.use(cors({
   origin: function(origin, callback){
-    // אם אין origin (למשל, ב-curl או Postman), אפשר לאשר
-    if (!origin) return callback(null, true);
-
-    // בדוק אם ה-origin נמצא ברשימת המורשים
+    if (!origin) return callback(null, true); // לאשר בקשות ללא origin (כמו ב-Postman)
     if (allowedOrigins.indexOf(origin) === -1) {
-      const msg = 'The CORS policy for this site does not allow access from the specified Origin.';
-      return callback(new Error(msg), false);
+      return callback(new Error('Not allowed by CORS'), false);
     }
-
     return callback(null, true);
   },
-  credentials: true // כדי לאפשר שליחת cookies או headers מסוימים
+  credentials: true
 }));
-
 
 // הגדרת Rate Limiting
 const apiLimiter = rateLimit({
@@ -152,7 +144,7 @@ function formatPhoneNumber(phoneNumber) {
   // אם המספר מתחיל ב-972, הסר אותו והוסף 0
   if (phoneNumber.startsWith('972')) {
     phoneNumber = '0' + phoneNumber.slice(3);
-  } else if (!phoneNumber.startsWith('0')) {
+  } else if (!phoneNumber מתחיל ב-0)) {
     // אם המספר לא מתחיל ב-0, הוסף 0
     phoneNumber = '0' + phoneNumber;
   }
@@ -318,6 +310,7 @@ app.get('/api/lastIncomingMessages', async (req, res) => {
     });
   }
 });
+
 // נקודת קצה לקבלת היסטוריית צ'אט
 app.get('/api/messages/:phoneNumber', async (req, res) => {
   console.log(`Received request for chat history. Phone number: ${req.params.phoneNumber}`);
