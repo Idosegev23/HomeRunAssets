@@ -3,7 +3,10 @@
     {
       "src": "package.json",
       "use": "@vercel/node",
-      "config": { "maxLambdaSize": "15mb" }
+      "config": { 
+        "maxLambdaSize": "15mb",
+        "installCommand": "npm install --legacy-peer-deps"
+      }
     }
   ],
   "routes": [{ "src": "/(.*)", "dest": "/" }]
