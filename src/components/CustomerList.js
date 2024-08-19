@@ -84,7 +84,7 @@ const CustomerList = () => {
   const fetchCustomers = useCallback(async () => {
     try {
       setLoading(true);
-      const response = await api.get('/customers');
+      const response = await api.get('/dataHandler?resource=customers');
       setCustomers(response.data);
       setSnackbar({ open: true, message: 'רשימת הלקוחות נטענה בהצלחה', severity: 'success' });
     } catch (err) {
@@ -154,7 +154,7 @@ const CustomerList = () => {
       const cleanCustomer = cleanObject(customer);
       const cleanProperties = await Promise.all(
         selectedProperties.map(async (id) => {
-          const response = await api.get(`/properties/${id}`);
+          const response = await api.get(`/dataHandler?resource=properties&id=${id}`);
           return cleanObject(response.data);
         })
       );
@@ -177,10 +177,10 @@ const CustomerList = () => {
   const saveCustomer = useCallback(async (customer) => {
     try {
       if (customer.id) {
-        await api.put(`/customers/${customer.id}`, customer);
+        await api.put(`/dataHandler?resource=customers&id=${customer.id}`, customer);
         setSnackbar({ open: true, message: 'הלקוח עודכן בהצלחה', severity: 'success' });
       } else {
-        await api.post('/customers', customer);
+        await api.post('/dataHandler?resource=customers', customer);
         setSnackbar({ open: true, message: 'הלקוח נוסף בהצלחה', severity: 'success' });
       }
       setEditingCustomer(null);

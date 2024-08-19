@@ -1,7 +1,6 @@
 import React, { useState } from 'react';
 import { Container, TextField, Button, Typography, Box, Snackbar, Paper, Grid, InputAdornment } from '@mui/material';
 import { styled } from '@mui/material/styles';
-import axios from 'axios';
 import MuiAlert from '@mui/material/Alert';
 import CircularProgress from '@mui/material/CircularProgress';
 import HomeIcon from '@mui/icons-material/Home';
@@ -9,6 +8,7 @@ import rtlPlugin from 'stylis-plugin-rtl';
 import { CacheProvider } from '@emotion/react';
 import createCache from '@emotion/cache';
 import { prefixer } from 'stylis';
+import api from '../utils/api';
 
 const Alert = React.forwardRef(function Alert(props, ref) {
   return <MuiAlert elevation={6} ref={ref} variant="filled" {...props} />;
@@ -56,7 +56,6 @@ const AddProperty = () => {
   const handleChange = (e) => {
     const { name, value } = e.target;
     if (name === 'price') {
-      // Remove non-numeric characters and format with commas
       const numericValue = value.replace(/[^\d]/g, '');
       const formattedValue = Number(numericValue).toLocaleString();
       setProperty(prevProperty => ({ ...prevProperty, [name]: formattedValue }));
@@ -76,7 +75,6 @@ const AddProperty = () => {
     if (property.rooms === '' || isNaN(Number(property.rooms))) {
       newErrors.rooms = 'יש להזין מספר חדרים תקין';
     }
-    // Add more validations here if needed
     setFieldErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
@@ -96,7 +94,7 @@ const AddProperty = () => {
         floor: Number(property.floor),
         max_floor: Number(property.max_floor)
       };
-      await axios.post('/api/properties', formattedProperty);
+      await api.post('/dataHandler', { resource: 'properties', data: formattedProperty });
       setLoading(false);
       setOpenSnackbar(true);
       setProperty({

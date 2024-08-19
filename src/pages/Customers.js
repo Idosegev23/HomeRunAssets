@@ -1,8 +1,8 @@
 import React, { useEffect, useState } from 'react';
-import axios from 'axios';
 import { Container, Typography, Table, TableBody, TableCell, TableHead, TableRow, CircularProgress, Snackbar } from '@mui/material';
 import { styled } from '@mui/material/styles';
 import MuiAlert from '@mui/material/Alert';
+import api from '../utils/api';
 
 const Alert = React.forwardRef(function Alert(props, ref) {
   return <MuiAlert elevation={6} ref={ref} variant="filled" {...props} />;
@@ -20,7 +20,7 @@ function Customers() {
 
   useEffect(() => {
     console.log('Fetching customers');
-    axios.get('/api/customers')
+    api.get('/dataHandler', { params: { resource: 'customers' } })
       .then(response => {
         console.log('Fetched customers:', response.data);
         setCustomers(response.data);

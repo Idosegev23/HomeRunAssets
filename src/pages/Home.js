@@ -17,7 +17,7 @@ import {
 } from '@mui/material';
 import { styled, useTheme } from '@mui/material/styles';
 import { Link as RouterLink } from 'react-router-dom';
-import axios from 'axios';
+import api from '../utils/api';
 import { 
   Home as HomeIcon, 
   People as PeopleIcon, 
@@ -174,7 +174,7 @@ const Home = () => {
 
   const fetchProperties = async () => {
     try {
-      const response = await axios.get(`${process.env.REACT_APP_API_BASE_URL}/properties`);
+      const response = await api.get('/dataHandler', { params: { resource: 'properties' } });
       console.log('Properties fetched:', response.data);
       setProperties(response.data);
     } catch (error) {
@@ -189,7 +189,7 @@ const Home = () => {
 
   const fetchCustomers = async () => {
     try {
-      const response = await axios.get(`${process.env.REACT_APP_API_BASE_URL}/customers`);
+      const response = await api.get('/dataHandler', { params: { resource: 'customers' } });
       console.log('Customers fetched:', response.data);
       setCustomers(response.data);
     } catch (error) {
@@ -204,7 +204,7 @@ const Home = () => {
 
   const fetchUnreadMessages = async () => {
     try {
-      const response = await axios.get(`${process.env.REACT_APP_API_BASE_URL}/messages/unread`);
+      const response = await api.get('/dataHandler', { params: { resource: 'messages/unread' } });
       console.log('Unread messages count:', response.data);
       setUnreadMessages(response.data.count);
     } catch (error) {

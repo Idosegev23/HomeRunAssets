@@ -1,7 +1,6 @@
 import React, { useState } from 'react';
 import { Container, TextField, Button, Typography, Box, Snackbar, Paper, Grid, InputAdornment } from '@mui/material';
 import { styled } from '@mui/material/styles';
-import axios from 'axios';
 import MuiAlert from '@mui/material/Alert';
 import CircularProgress from '@mui/material/CircularProgress';
 import PersonAddIcon from '@mui/icons-material/PersonAdd';
@@ -9,6 +8,7 @@ import rtlPlugin from 'stylis-plugin-rtl';
 import { CacheProvider } from '@emotion/react';
 import createCache from '@emotion/cache';
 import { prefixer } from 'stylis';
+import api from '../utils/api';
 
 const Alert = React.forwardRef(function Alert(props, ref) {
   return <MuiAlert elevation={6} ref={ref} variant="filled" {...props} />;
@@ -83,12 +83,12 @@ const AddCustomer = () => {
       const formattedCustomer = {
         ...customer,
         Cell: Number(customer.Cell),
-        Budget: Number(customer.Budget), // Airtable will handle currency formatting
+        Budget: Number(customer.Budget),
         Rooms: Number(customer.Rooms),
         Square_meters: Number(customer.Square_meters),
         Preferred_floor: Number(customer.Preferred_floor)
       };
-      await axios.post('/api/customers', formattedCustomer);
+      await api.post('/dataHandler', { resource: 'customers', data: formattedCustomer });
       setLoading(false);
       setOpenSnackbar(true);
       setCustomer({

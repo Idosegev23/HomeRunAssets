@@ -1,4 +1,3 @@
-// CustomerEditDialog.js
 import React, { useState, useEffect } from 'react';
 import { Dialog, DialogTitle, DialogContent, DialogActions, Button, TextField, Grid } from '@mui/material';
 
@@ -14,8 +13,25 @@ const CustomerEditDialog = ({ open, customer, onClose, onSave }) => {
     setEditedCustomer(prev => ({ ...prev, [name]: value }));
   };
 
-  const handleSave = () => {
-    onSave(editedCustomer);
+  const handleSave = async () => {
+    try {
+      const response = await fetch('/api/dataHandler?resource=customers', {
+        method: customer?.id ? 'PUT' : 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(editedCustomer),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to save customer');
+      }
+
+      const savedCustomer = await response.json();
+      onSave(savedCustomer);
+    } catch (error) {
+      console.error('Error saving customer:', error);
+    }
   };
 
   return (

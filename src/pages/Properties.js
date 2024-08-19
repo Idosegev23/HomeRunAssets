@@ -1,11 +1,11 @@
 import React, { useEffect, useState } from 'react';
-import axios from 'axios';
 import { 
   Container, Typography, Table, TableBody, TableCell, TableHead, TableRow, 
   CircularProgress, Snackbar, Paper, TableContainer, TablePagination, TableSortLabel
 } from '@mui/material';
 import { styled } from '@mui/material/styles';
 import MuiAlert from '@mui/material/Alert';
+import api from '../utils/api';
 
 const Alert = React.forwardRef(function Alert(props, ref) {
   return <MuiAlert elevation={6} ref={ref} variant="filled" {...props} />;
@@ -40,17 +40,20 @@ function PropertyList() {
   const [order, setOrder] = useState('asc');
 
   useEffect(() => {
-    axios.get('/api/properties')
-      .then(response => {
+    const fetchProperties = async () => {
+      try {
+        const response = await api.get('/dataHandler', { params: { resource: 'properties' } });
         setProperties(response.data);
         setLoading(false);
-      })
-      .catch(error => {
+      } catch (error) {
         console.error('Error fetching properties:', error);
         setError('שגיאה בטעינת הנכסים. אנא נסה שוב מאוחר יותר.');
         setLoading(false);
         setOpenSnackbar(true);
-      });
+      }
+    };
+
+    fetchProperties();
   }, []);
 
   const handleRequestSort = (property) => {

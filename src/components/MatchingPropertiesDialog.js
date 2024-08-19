@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { Dialog, DialogTitle, DialogContent, DialogActions, Button, Grid, Card, CardContent, Typography, Checkbox, FormControlLabel } from '@mui/material';
+import api from '../utils/api';
 
 const MatchingPropertiesDialog = ({ open, onClose, matchingProperties, selectedCustomer, onSendMessage }) => {
   const [selectedProperties, setSelectedProperties] = useState([]);
@@ -14,8 +15,20 @@ const MatchingPropertiesDialog = ({ open, onClose, matchingProperties, selectedC
     });
   };
 
-  const handleSendMessages = () => {
-    onSendMessage(selectedCustomer, selectedProperties);
+  const handleSendMessages = async () => {
+    try {
+      const cleanCustomer = { ...selectedCustomer };
+      const cleanProperties = await Promise.all(
+        selectedProperties.map(async (id) => {
+          const response = await api.get('/dataHandler', { params: { resource: 'properties', id } });
+          return { ...response.data };
+        })
+      );
+
+      onSendMessage(cleanCustomer, cleanProperties);
+    } catch (error) {
+      console.error('Error sending messages:', error);
+    }
   };
 
   return (

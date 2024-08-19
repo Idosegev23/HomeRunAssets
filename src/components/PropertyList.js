@@ -82,7 +82,7 @@ const PropertyList = () => {
   const fetchProperties = async () => {
     try {
       setLoading(true);
-      const response = await api.get('/properties');
+      const response = await api.get('/dataHandler', { params: { resource: 'properties' } });
       console.log("Properties fetched successfully:", response.data);
       setProperties(response.data);
       setLoading(false);
@@ -96,7 +96,7 @@ const PropertyList = () => {
   const fetchCustomers = async () => {
     try {
       console.log("Fetching customers...");
-      const response = await api.get('/customers');
+      const response = await api.get('/dataHandler', { params: { resource: 'customers' } });
       console.log("Customers fetched successfully:", response.data);
       setCustomers(response.data);
     } catch (err) {
