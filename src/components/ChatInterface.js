@@ -18,9 +18,11 @@ import {
 import SendIcon from '@mui/icons-material/Send';
 import AttachFileIcon from '@mui/icons-material/AttachFile';
 import SearchIcon from '@mui/icons-material/Search';
-import axios from 'axios';
-
-const API_BASE_URL = 'http://localhost:5001/api';
+import ImageIcon from '@mui/icons-material/Image';
+import VideoIcon from '@mui/icons-material/Videocam';
+import api from '../utils/api';
+import { debounce } from 'lodash';
+import ErrorBoundary from './ErrorBoundary';
 
 const ChatInterface = () => {
   const [chats, setChats] = useState([]);
@@ -32,9 +34,14 @@ const ChatInterface = () => {
   const [currentTopic, setCurrentTopic] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
+  const [selectedFile, setSelectedFile] = useState(null);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [page, setPage] = useState(1);
+  const [hasMore, setHasMore] = useState(true);
   const messagesEndRef = useRef(null);
   const fileInputRef = useRef(null);
   const eventSourceRef = useRef(null);
+  const observerRef = useRef(null);
 
   const setupEventSource = useCallback(() => {
     if (eventSourceRef.current) {
@@ -42,7 +49,7 @@ const ChatInterface = () => {
     }
 
     console.log('Setting up new EventSource');
-    const newEventSource = new EventSource(`${API_BASE_URL}/messages/stream`);
+    const newEventSource = new EventSource(`${api.defaults.baseURL}/messages/stream`);
     
     newEventSource.onopen = () => {
       console.log('EventSource connection opened');
@@ -104,12 +111,33 @@ const ChatInterface = () => {
     scrollToBottom();
   }, [messages]);
 
+  useEffect(() => {
+    const observer = new IntersectionObserver(
+      entries => {
+        if (entries[0].isIntersecting && hasMore) {
+          loadMoreMessages();
+        }
+      },
+      { threshold: 1 }
+    );
+
+    if (observerRef.current) {
+      observer.observe(observerRef.current);
+    }
+
+    return () => {
+      if (observerRef.current) {
+        observer.unobserve(observerRef.current);
+      }
+    };
+  }, [hasMore, selectedChat]);
+
   const fetchChats = async () => {
     try {
       setLoading(true);
       setError(null);
       console.log('Fetching chats...');
-      const response = await axios.get(`${API_BASE_URL}/chats`);
+      const response = await api.get('/chats', { params: { search: searchQuery } });
       console.log('Chats response:', response.data);
       setChats(response.data);
     } catch (error) {
@@ -120,19 +148,29 @@ const ChatInterface = () => {
     }
   };
 
-  const fetchMessages = async (phoneNumber) => {
+  const fetchMessages = async (phoneNumber, page = 1, limit = 20) => {
     try {
       setLoading(true);
       setError(null);
       console.log(`Fetching messages for ${phoneNumber}...`);
-      const response = await axios.get(`${API_BASE_URL}/messages/${phoneNumber}`);
+      const response = await api.get(`/messages/${phoneNumber}`, {
+        params: { page, limit }
+      });
       console.log('Messages response:', response.data);
-      setMessages(response.data);
+      setMessages(prevMessages => [...prevMessages, ...response.data.messages]);
+      setHasMore(response.data.hasMore);
+      setPage(page);
     } catch (error) {
       console.error('Error fetching messages:', error);
       setError('Failed to fetch messages. Please try again.');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const loadMoreMessages = () => {
+    if (selectedChat && hasMore) {
+      fetchMessages(selectedChat.phoneNumber, page + 1);
     }
   };
 
@@ -142,7 +180,7 @@ const ChatInterface = () => {
       setLoading(true);
       setError(null);
       console.log(`Fetching customer details for ${customerId}...`);
-      const response = await axios.get(`${API_BASE_URL}/customers/${customerId}`);
+      const response = await api.get(`/customers/${customerId}`);
       console.log('Customer details response:', response.data);
       setCustomerDetails(response.data);
     } catch (error) {
@@ -160,7 +198,7 @@ const ChatInterface = () => {
       setLoading(true);
       setError(null);
       console.log(`Fetching matching properties for ${customerId}...`);
-      const response = await axios.get(`${API_BASE_URL}/matchingProperties/${customerId}`);
+      const response = await api.get(`/matchingProperties/${customerId}`);
       console.log('Matching properties response:', response.data);
       setMatchingProperties(response.data);
     } catch (error) {
@@ -177,7 +215,7 @@ const ChatInterface = () => {
       try {
         setLoading(true);
         setError(null);
-        const response = await axios.post(`${API_BASE_URL}/sendMessage`, {
+        const response = await api.post('/sendMessage', {
           phoneNumber: selectedChat.phoneNumber,
           text: messageText,
           topic: currentTopic
@@ -209,20 +247,28 @@ const ChatInterface = () => {
     const file = event.target.files[0];
     if (!file) return;
 
+    setSelectedFile(file);
     const formData = new FormData();
     formData.append('file', file);
     formData.append('chatId', selectedChat.phoneNumber);
+    formData.append('fileName', file.name);
 
     try {
       setLoading(true);
       setError(null);
-      const response = await axios.post(`${API_BASE_URL}/uploadFile`, formData, {
+      const response = await api.post('/uploadFile', formData, {
         headers: {
           'Content-Type': 'multipart/form-data',
         },
       });
       console.log('File upload response:', response.data);
-      setMessages(prev => [...prev, response.data]);
+      setMessages(prev => [...prev, { 
+        sender: 'Me', 
+        text: file.name, 
+        timestamp: Date.now() / 1000,
+        fileType: file.type.startsWith('image/') ? 'image' : 'video'
+      }]);
+      setSelectedFile(null);
     } catch (error) {
       console.error('Error uploading file:', error);
       setError('Failed to upload file. Please try again.');
@@ -272,167 +318,190 @@ const ChatInterface = () => {
     );
   };
 
-  return (
-    <Box sx={{ display: 'flex', height: '100vh', width: '100vw' }}>
-      {/* Right Sidebar - Chat List */}
-      <Box sx={{ width: 300, borderRight: 1, borderColor: 'divider', overflow: 'auto' }}>
-        <Box sx={{ p: 2, borderBottom: 1, borderColor: 'divider' }}>
-          <TextField
-            fullWidth
-            variant="outlined"
-            placeholder="חיפוש צ'אט"
-            InputProps={{
-              startAdornment: <SearchIcon color="action" />,
-            }}
-          />
-        </Box>
-        <List>
-          {chats.map((chat) => (
-            <ListItem 
-              button 
-              key={chat.phoneNumber}
-              selected={selectedChat?.phoneNumber === chat.phoneNumber}
-              onClick={() => {
-                setSelectedChat(chat);
-                setChats(prevChats => 
-                  prevChats.map(c => 
-                    c.phoneNumber === chat.phoneNumber 
-                      ? {...c, hasNewMessage: false}
-                      : c
-                  )
-                );
-              }}
-            >
-              <ListItemAvatar>
-                <Avatar>{chat.customerName[0]}</Avatar>
-              </ListItemAvatar>
-              <ListItemText 
-                primary={chat.customerName}
-                secondary={chat.lastMessage}
-                primaryTypographyProps={{ 
-                  fontWeight: chat.hasNewMessage ? 'bold' : 'normal',
-                  color: chat.hasNewMessage ? 'primary' : 'inherit'
-                }}
-                secondaryTypographyProps={{ noWrap: true }}
-              />
-              {chat.hasNewMessage && (
-                <Box 
-                  sx={{ 
-                    width: 10, 
-                    height: 10, 
-                    borderRadius: '50%', 
-                    backgroundColor: 'primary.main', 
-                    marginLeft: 1 
-                  }} 
-                />
-              )}
-            </ListItem>
-          ))}
-        </List>
-      </Box>
-
-      {/* Main Chat Area */}
-      <Box sx={{ flexGrow: 1, display: 'flex', flexDirection: 'column' }}>
-        {selectedChat ? (
-          <>
-            <Box sx={{ p: 2, borderBottom: 1, borderColor: 'divider', bgcolor: '#f0f0f0' }}>
-              <Typography variant="h6">{selectedChat.customerName}</Typography>
-              <Typography variant="subtitle2">{selectedChat.phoneNumber}</Typography>
-            </Box>
-            <Box sx={{ flexGrow: 1, overflow: 'auto', p: 2, bgcolor: '#e5ddd5', display: 'flex', flexDirection: 'column' }}>
-              {messages.map((msg, index) => (
-                <Box 
-                  key={index}
-                  sx={{
-                    display: 'flex',
-                    flexDirection: 'column',
-                    alignItems: msg.sender === 'Me' ? 'flex-end' : 'flex-start',
-                    mb: 1,
-                  }}
-                >
-                  <Paper 
-                    elevation={1}
-                    sx={{
-                      p: 1,
-                      bgcolor: msg.sender === 'Me' ? '#dcf8c6' : '#fff',
-                      maxWidth: '70%',
-                    }}
-                  >
-                    <Typography variant="body1">{msg.text}</Typography>
-                    <Typography variant="caption" display="block" textAlign="right">
-                      {formatTimestamp(msg.timestamp)}
-                    </Typography>
-                  </Paper>
-                </Box>
-              ))}
-              <div ref={messagesEndRef} />
-            </Box>
-            <Box sx={{ p: 2, bgcolor: '#f0f0f0', display: 'flex' }}>
-            <TextField
-                fullWidth
-                variant="outlined"
-                value={messageText}
-                onChange={(e) => setMessageText(e.target.value)}
-                placeholder="הקלד הודעה..."
-                onKeyPress={(e) => e.key === 'Enter' && handleSendMessage()}
-              />
-              <input
-                type="file"
-                hidden
-                ref={fileInputRef}
-                onChange={handleFileUpload}
-              />
-              <IconButton color="primary" onClick={() => fileInputRef.current.click()}>
-                <AttachFileIcon />
-              </IconButton>
-              <IconButton color="primary" onClick={handleSendMessage}>
-                <SendIcon />
-              </IconButton>
-            </Box>
-          </>
-        ) : (
-          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%' }}>
-            <Typography variant="h5">בחר צ'אט כדי להתחיל שיחה</Typography>
-          </Box>
+  const renderMessage = (msg, index) => (
+    <Box 
+      key={index}
+      sx={{
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: msg.sender === 'Me' ? 'flex-end' : 'flex-start',
+        mb: 1,
+      }}
+    >
+      <Paper 
+        elevation={1}
+        sx={{
+          p: 1,
+          bgcolor: msg.sender === 'Me' ? '#dcf8c6' : '#fff',
+          maxWidth: '70%',
+        }}
+      >
+        {msg.fileType === 'image' && (
+          <img src={msg.text} alt="Uploaded image" style={{ maxWidth: '100%', marginBottom: 8 }} />
         )}
-      </Box>
-
-      {/* Left Sidebar - Customer Details and Matching Properties */}
-      <Box sx={{ width: 300, borderLeft: 1, borderColor: 'divider', overflow: 'auto' }}>
-        {renderCustomerDetails()}
-        <Divider />
-        {matchingProperties.length > 0 && (
-          <Box sx={{ p: 2 }}>
-            <Typography variant="h6" gutterBottom>נכסים מתאימים</Typography>
-            {matchingProperties.map((property, index) => (
-              <Paper key={index} elevation={1} sx={{ p: 1, mb: 1 }}>
-                <Typography variant="body2"><strong>כתובת:</strong> {property.address}</Typography>
-                <Typography variant="body2"><strong>מחיר:</strong> {property.price}</Typography>
-                <Typography variant="body2"><strong>חדרים:</strong> {property.rooms}</Typography>
-                <Typography variant="body2"><strong>מ"ר:</strong> {property.square_meters}</Typography>
-                <Typography variant="body2"><strong>קומה:</strong> {property.floor}</Typography>
-                <Typography variant="body2"><strong>התאמה:</strong> {property.totalMatchPercentage}%</Typography>
-                <Button variant="outlined" size="small" onClick={() => handleSendProperty(property)} sx={{ mt: 1 }}>
-                  שלח ללקוח
-                </Button>
-              </Paper>
-            ))}
-          </Box>
+        {msg.fileType === 'video' && (
+          <video src={msg.text} controls style={{ maxWidth: '100%', marginBottom: 8 }} />
         )}
-      </Box>
-
-      {loading && (
-        <Box sx={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', bgcolor: 'rgba(0, 0, 0, 0.5)' }}>
-          <CircularProgress />
-        </Box>
-      )}
-
-      {error && (
-        <Box sx={{ position: 'absolute', bottom: 20, left: 20, right: 20, p: 2, bgcolor: 'error.main', color: 'error.contrastText', borderRadius: 1 }}>
-          <Typography>{error}</Typography>
-        </Box>
-      )}
+        <Typography variant="body1">{msg.text}</Typography>
+        <Typography variant="caption" display="block" textAlign="right">
+          {formatTimestamp(msg.timestamp)}
+        </Typography>
+      </Paper>
     </Box>
+  );
+
+  const debouncedSearch = debounce((value) => {
+    setSearchQuery(value);
+    fetchChats();
+  }, 300);
+
+  const handleSearchChange = (event) => {
+    debouncedSearch(event.target.value);
+  };
+
+  return (
+    <ErrorBoundary>
+      <Box sx={{ display: 'flex', height: '100vh', width: '100vw' }}>
+        {/* Right Sidebar - Chat List */}
+        <Box sx={{ width: 300, borderRight: 1, borderColor: 'divider', overflow: 'auto' }}>
+          <Box sx={{ p: 2, borderBottom: 1, borderColor: 'divider' }}>
+            <TextField
+              fullWidth
+              variant="outlined"
+              placeholder="חיפוש צ'אט"
+              onChange={handleSearchChange}
+              InputProps={{
+                startAdornment: <SearchIcon color="action" />,
+              }}
+            />
+          </Box>
+          <List>
+            {chats.map((chat) => (
+              <ListItem 
+                button 
+                key={chat.phoneNumber}
+                selected={selectedChat?.phoneNumber === chat.phoneNumber}
+                onClick={() => {
+                  setSelectedChat(chat);
+                  setChats(prevChats => 
+                    prevChats.map(c => 
+                      c.phoneNumber === chat.phoneNumber 
+                        ? {...c, hasNewMessage: false}
+                        : c
+                    )
+                  );
+                }}
+              >
+                <ListItemAvatar>
+                  <Avatar>{chat.customerName[0]}</Avatar>
+                </ListItemAvatar>
+                <ListItemText 
+                  primary={chat.customerName}
+                  secondary={chat.lastMessage}
+                  primaryTypographyProps={{ 
+                    fontWeight: chat.hasNewMessage ? 'bold' : 'normal',
+                    color: chat.hasNewMessage ? 'primary' : 'inherit'
+                  }}
+                  secondaryTypographyProps={{ noWrap: true }}
+                />
+                {chat.hasNewMessage && (
+                  <Box 
+                    sx={{ 
+                      width: 10, 
+                      height: 10, 
+                      borderRadius: '50%', 
+                      backgroundColor: 'primary.main', 
+                      marginLeft: 1 
+                    }} 
+                  />
+                )}
+              </ListItem>
+            ))}
+          </List>
+        </Box>
+
+        {/* Main Chat Area */}
+        <Box sx={{ flexGrow: 1, display: 'flex', flexDirection: 'column' }}>
+          {selectedChat ? (
+            <>
+              <Box sx={{ p: 2, borderBottom: 1, borderColor: 'divider', bgcolor: '#f0f0f0' }}>
+                <Typography variant="h6">{selectedChat.customerName}</Typography>
+                <Typography variant="subtitle2">{selectedChat.phoneNumber}</Typography>
+              </Box>
+              <Box sx={{ flexGrow: 1, overflow: 'auto', p: 2, bgcolor: '#e5ddd5', display: 'flex', flexDirection: 'column-reverse' }}>
+                {messages.map((msg, index) => renderMessage(msg, index))}
+                <div ref={observerRef} style={{ height: '20px', margin: '10px 0' }}>
+                  {loading && <CircularProgress size={20} />}
+                </div>
+              </Box>
+              <Box sx={{ p: 2, bgcolor: '#f0f0f0', display: 'flex' }}>
+                <TextField
+                  fullWidth
+                  variant="outlined"
+                  value={messageText}
+                  onChange={(e) => setMessageText(e.target.value)}
+                  placeholder="הקלד הודעה..."
+                  onKeyPress={(e) => e.key === 'Enter' && handleSendMessage()}
+                />
+                <input
+                  type="file"
+                  hidden
+                  ref={fileInputRef}
+                  onChange={handleFileUpload}
+                  accept="image/*,video/*"
+                />
+                <IconButton color="primary" onClick={() => fileInputRef.current.click()}>
+                  <AttachFileIcon />
+                </IconButton>
+                <IconButton color="primary" onClick={handleSendMessage}>
+                  <SendIcon />
+                </IconButton>
+              </Box>
+            </>
+          ) : (
+            <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%' }}>
+              <Typography variant="h5">בחר צ'אט כדי להתחיל שיחה</Typography>
+            </Box>
+          )}
+        </Box>
+
+        {/* Left Sidebar - Customer Details and Matching Properties */}
+        <Box sx={{ width: 300, borderLeft: 1, borderColor: 'divider', overflow: 'auto' }}>
+          {renderCustomerDetails()}
+          <Divider />
+          {matchingProperties.length > 0 && (
+            <Box sx={{ p: 2 }}>
+              <Typography variant="h6" gutterBottom>נכסים מתאימים</Typography>
+              {matchingProperties.map((property, index) => (
+                <Paper key={index} elevation={1} sx={{ p: 1, mb: 1 }}>
+                  <Typography variant="body2"><strong>כתובת:</strong> {property.address}</Typography>
+                  <Typography variant="body2"><strong>מחיר:</strong> {property.price}</Typography>
+                  <Typography variant="body2"><strong>חדרים:</strong> {property.rooms}</Typography>
+                  <Typography variant="body2"><strong>מ"ר:</strong> {property.square_meters}</Typography>
+                  <Typography variant="body2"><strong>קומה:</strong> {property.floor}</Typography>
+                  <Typography variant="body2"><strong>התאמה:</strong> {property.totalMatchPercentage}%</Typography>
+                  <Button variant="outlined" size="small" onClick={() => handleSendProperty(property)} sx={{ mt: 1 }}>
+                    שלח ללקוח
+                  </Button>
+                </Paper>
+              ))}
+            </Box>
+          )}
+        </Box>
+
+        {loading && (
+          <Box sx={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', bgcolor: 'rgba(0, 0, 0, 0.5)' }}>
+            <CircularProgress />
+          </Box>
+        )}
+
+        {error && (
+          <Box sx={{ position: 'absolute', bottom: 20, left: 20, right: 20, p: 2, bgcolor: 'error.main', color: 'error.contrastText', borderRadius: 1 }}>
+            <Typography>{error}</Typography>
+          </Box>
+        )}
+      </Box>
+    </ErrorBoundary>
   );
 };
 

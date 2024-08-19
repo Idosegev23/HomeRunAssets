@@ -146,7 +146,7 @@ function formatPhoneNumber(phoneNumber) {
   // אם המספר מתחיל ב-972, הסר אותו והוסף 0
   if (phoneNumber.startsWith('972')) {
     phoneNumber = '0' + phoneNumber.slice(3);
-  } else if (!phoneNumber מתחיל ב-0)) {
+  } else if (!phoneNumber.startsWith('0')) {
     // אם המספר לא מתחיל ב-0, הוסף 0
     phoneNumber = '0' + phoneNumber;
   }
@@ -154,6 +154,7 @@ function formatPhoneNumber(phoneNumber) {
   console.log(`Formatted phone number: ${phoneNumber}`);
   return phoneNumber;
 }
+
 
 // נקודת קצה לקבלת כל הצ'אטים
 app.get('/api/chats', async (req, res) => {

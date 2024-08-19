@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { Container, Grid, Typography, Snackbar, Dialog, DialogTitle, DialogContent, DialogActions, Button, AppBar, Toolbar, CircularProgress } from '@mui/material';
 import MuiAlert from '@mui/material/Alert';
@@ -9,6 +9,8 @@ import rtlPlugin from 'stylis-plugin-rtl';
 import SMCustomerList from './SMCustomerList';
 import MessageEditor from './MessageEditor';
 import './SendMessages.css';
+import axios from 'axios';
+import { isHoliday, getHolidayName } from '../utils/israeliHolidays';
 
 // Create RTL cache
 const cacheRtl = createCache({
@@ -20,8 +22,8 @@ const Alert = React.forwardRef(function Alert(props, ref) {
   return <MuiAlert elevation={6} ref={ref} variant="filled" {...props} />;
 });
 
-const GREENAPI_ID = '7103957095';
-const GREENAPI_APITOKENINSTANCE = '3d5b3813c614437baea72c0e825205f22d19bf84baf34365a8';
+const DAILY_MESSAGE_LIMIT = 200;
+const WAIT_TIME = 20 * 1000; // 20 seconds
 
 const SendMessages = () => {
   const location = useLocation();
@@ -40,128 +42,191 @@ const SendMessages = () => {
   const [countdown, setCountdown] = useState(0);
   const [openCountdownDialog, setOpenCountdownDialog] = useState(false);
   const [dataReady, setDataReady] = useState(false);
+  const [sendQueue, setSendQueue] = useState([]);
+  const [dailyMessageCount, setDailyMessageCount] = useState(() => {
+    const storedCount = localStorage.getItem('dailyMessageCount');
+    return storedCount ? parseInt(storedCount, 10) : 0;
+  });
+  const [totalMessages, setTotalMessages] = useState(() => {
+    const storedTotal = localStorage.getItem('totalMessages');
+    return storedTotal ? parseInt(storedTotal, 10) : 0;
+  });
+
+  // 1. Serverless-friendly State Management
+  useEffect(() => {
+    localStorage.setItem('dailyMessageCount', dailyMessageCount.toString());
+  }, [dailyMessageCount]);
 
   useEffect(() => {
-    console.log("Current location.state:", location.state);
-    
+    localStorage.setItem('totalMessages', totalMessages.toString());
+  }, [totalMessages]);
+
+  // Reset daily message count at midnight
+  useEffect(() => {
+    const now = new Date();
+    const midnight = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
+    const timeUntilMidnight = midnight.getTime() - now.getTime();
+
+    const resetMessageCount = () => {
+      setDailyMessageCount(0);
+      localStorage.setItem('dailyMessageCount', '0');
+    };
+
+    const timeoutId = setTimeout(resetMessageCount, timeUntilMidnight);
+
+    return () => clearTimeout(timeoutId);
+  }, []);
+
+  // 3. Caching
+  const cachedEligibleCustomers = useMemo(() => {
+    return selectedCustomer ? [selectedCustomer] : (eligibleCustomers || []);
+  }, [selectedCustomer, eligibleCustomers]);
+
+  // 5. Stateless Design
+  useEffect(() => {
     if (!location.state) {
-      console.error("No state passed to SendMessages component");
       setError("לא התקבלו נתונים. אנא חזור לדף הקודם ונסה שוב.");
       return;
     }
 
     if (!selectedProperties || selectedProperties.length === 0) {
-      console.error("Missing selectedProperties in SendMessages component");
       setError("לא נבחרו נכסים. אנא חזור לדף הנכסים ובחר נכסים.");
       return;
     }
 
-    const customers = selectedCustomer ? [selectedCustomer] : (eligibleCustomers || []);
+    const customers = cachedEligibleCustomers;
 
     if (customers.length === 0) {
-      console.error("No customers available in SendMessages component");
       setError("לא נמצאו לקוחות מתאימים לנכסים אלו.");
       return;
     }
 
     setSelectedCustomers(customers.map(customer => customer.id));
     setDataReady(true);
-  }, [selectedCustomer, selectedProperties, eligibleCustomers, location.state]);
+  }, [location.state, selectedProperties, cachedEligibleCustomers]);
 
   const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
-  const replaceTokens = (message, customer, property) => {
-    const tokens = {
+  const replaceTokens = useCallback((message, customer, properties) => {
+    let finalMessage = message;
+    properties.forEach((property, index) => {
+      const tokens = {
         '{שם_פרטי}': customer.First_name,
         '{שם_משפחה}': customer.Last_name,
         '{תקציב}': customer.Budget,
         '{אזור}': customer.Area,
-        '{מחיר_נכס}': property.price,
-        '{עיר_נכס}': property.city,
-        '{רחוב_נכס}': property.street,
-        '{מספר_חדרים}': property.rooms,
-        '{מר}': property.square_meters,
-        '{קומה}': property.floor
-    };
+        [`{מחיר_נכס_${index+1}}`]: property.price,
+        [`{עיר_נכס_${index+1}}`]: property.city,
+        [`{רחוב_נכס_${index+1}}`]: property.street,
+        [`{מספר_חדרים_${index+1}}`]: property.rooms,
+        [`{מר_${index+1}}`]: property.square_meters,
+        [`{קומה_${index+1}}`]: property.floor
+      };
 
-    return message.replace(/\{.*?\}/g, match => tokens[match] || match);
-};
+      Object.entries(tokens).forEach(([token, value]) => {
+        finalMessage = finalMessage.replace(new RegExp(token, 'g'), value);
+      });
+    });
 
+    return finalMessage;
+  }, []);
 
-  const handleSendMessages = async () => {
+  const isWithinAllowedTime = useCallback(() => {
+    const now = new Date();
+    const hours = now.getHours();
+    const day = now.getDay();
+    const holiday = isHoliday(now);
+
+    if (holiday || day === 6 || (day === 5 && hours >= 14) || hours >= 20) {
+      return false;
+    }
+    return true;
+  }, []);
+
+  // 2. Optimized API Calls & 6. Scalability
+  const sendMessage = useCallback(async (chatId, personalizedMessage) => {
+    const retries = 3;
+    for (let i = 0; i < retries; i++) {
+      try {
+        const response = await axios.post(`${process.env.NEXT_PUBLIC_API_BASE_URL}/api/sendMessage`, {
+          phoneNumber: chatId,
+          text: personalizedMessage
+        }, {
+          headers: {
+            'Content-Type': 'application/json',
+          }
+        });
+
+        if (response.status === 200) {
+          return response.data;
+        }
+      } catch (error) {
+        if (i === retries - 1) throw error;
+        await delay(1000 * Math.pow(2, i)); // Exponential backoff
+      }
+    }
+  }, []);
+
+  const handleSendMessages = useCallback(async () => {
     setOpenConfirmDialog(false);
     setLoading(true);
     setProgress(0);
     setBackgroundSending(true);
 
     const totalCustomers = selectedCustomers.length;
-    const totalProperties = selectedProperties.length;
+
+    if (dailyMessageCount >= DAILY_MESSAGE_LIMIT) {
+      setError("כמות ההודעות המקסימלית להיום הושגה. ניתן לשלוח הודעות נוספות מחר.");
+      setOpenSnackbar(true);
+      setLoading(false);
+      return;
+    }
 
     const sendMessagesInBackground = async () => {
       for (let i = 0; i < totalCustomers; i++) {
-        for (let j = 0; j < totalProperties; j++) {
-          try {
-            const customerId = selectedCustomers[i];
-            const customer = eligibleCustomers.find(c => c.id === customerId);
-            const property = selectedProperties[j];
+        if (!isWithinAllowedTime()) {
+          const holidayName = getHolidayName(new Date());
+          setError(holidayName 
+            ? `היום חג ישראלי (${holidayName}), ולכן לא ניתן לשלוח הודעות.` 
+            : "לא ניתן לשלוח הודעות בשעה או ביום הנוכחיים. ההודעות יישלחו בזמן המתאים הבא.");
+          setOpenSnackbar(true);
+          break;
+        }
 
-            const personalizedMessage = replaceTokens(customMessage, customer, property);
-            const chatId = `972${customer.Cell}@c.us`;
+        const customerId = selectedCustomers[i];
+        const customer = cachedEligibleCustomers.find(c => c.id === customerId);
+        const personalizedMessage = replaceTokens(customMessage, customer, selectedProperties);
 
-            // בדיקה אם ההודעה כבר נשלחה על אותו נכס
-            const responseCheck = await fetch(`https://api.green-api.com/waInstance${GREENAPI_ID}/getChatHistory/${GREENAPI_APITOKENINSTANCE}`, {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json'
-              },
-              body: JSON.stringify({
-                chatId: chatId,
-                count: 100
-              })
-            });
+        const chatId = `972${customer.Cell.replace(/\D/g, '').slice(1)}@c.us`;
 
-            const dataCheck = await responseCheck.json();
-            const isDuplicate = dataCheck.some(
-              (msg) => msg.textMessage === personalizedMessage
-            );
+        try {
+          await sendMessage(chatId, personalizedMessage);
 
-            if (isDuplicate) {
-              console.log(`הודעה כבר נשלחה ללקוח על נכס זה: ${property.street}`);
-              continue; // דלג להודעה הבאה אם כבר נשלחה הודעה זהה
+          setProgress(((i + 1) / totalCustomers) * 100);
+          setDailyMessageCount(prevCount => {
+            const newCount = prevCount + 1;
+            localStorage.setItem('dailyMessageCount', newCount.toString());
+            return newCount;
+          });
+          setTotalMessages(prev => {
+            const newTotal = prev + 1;
+            localStorage.setItem('totalMessages', newTotal.toString());
+            return newTotal;
+          });
+
+          if (i < totalCustomers - 1) {
+            setCountdown(20);
+            setOpenCountdownDialog(true);
+            for (let k = 20; k > 0; k--) {
+              await delay(1000);
+              setCountdown(k - 1);
             }
-
-            const response = await fetch(`https://api.green-api.com/waInstance${GREENAPI_ID}/sendMessage/${GREENAPI_APITOKENINSTANCE}`, {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json'
-              },
-              body: JSON.stringify({
-                chatId,
-                message: personalizedMessage
-              })
-            });
-
-            const data = await response.json();
-
-            if (!response.ok) {
-              throw new Error(`Error: ${data.error}`);
-            }
-
-            setProgress(((i * totalProperties + j + 1) / (totalCustomers * totalProperties)) * 100);
-
-            if (j < totalProperties - 1 || i < totalCustomers - 1) {
-              setCountdown(30);
-              setOpenCountdownDialog(true);
-              for (let k = 30; k > 0; k--) {
-                await delay(1000);
-                setCountdown(k - 1);
-              }
-              setOpenCountdownDialog(false);
-            }
-          } catch (err) {
-            console.error(`Error sending message: ${err.message}`);
-            setError(`שגיאה בשליחת ההודעה: ${err.message}`);
+            setOpenCountdownDialog(false);
           }
+        } catch (err) {
+          console.error(`Error sending message: ${err.message}`);
+          setError(`שגיאה בשליחת ההודעה: ${err.message}`);
+          setOpenSnackbar(true);
         }
       }
 
@@ -172,24 +237,36 @@ const SendMessages = () => {
       setOpenNavigationDialog(true);
     };
 
-    sendMessagesInBackground();
-  };
+    setSendQueue(prevQueue => [...prevQueue, sendMessagesInBackground]);
+  }, [selectedCustomers, dailyMessageCount, isWithinAllowedTime, cachedEligibleCustomers, customMessage, selectedProperties, sendMessage, replaceTokens]);
 
-  const handleCloseSnackbar = () => {
-    setOpenSnackbar(false);
-  };
+  const handleProcessQueue = useCallback(async () => {
+    while (sendQueue.length > 0) {
+      const sendTask = sendQueue.shift();
+      await sendTask();
+    }
+  }, [sendQueue]);
 
-  const handleNavigate = (destination) => {
+  useEffect(() => {
+    if (sendQueue.length > 0 && !loading) {
+      handleProcessQueue();
+    }
+  }, [sendQueue, loading, handleProcessQueue]);
+
+  const handleCloseSnackbar = () => setOpenSnackbar(false);
+
+  const handleNavigate = useCallback((destination) => {
     setOpenNavigationDialog(false);
     navigate(destination);
-  };
+  }, [navigate]);
 
-  const handleCancelSending = () => {
+  const handleCancelSending = useCallback(() => {
     setLoading(false);
     setBackgroundSending(false);
     setProgress(0);
     setOpenCountdownDialog(false);
-  };
+    setSendQueue([]);
+  }, []);
 
   if (error) {
     return (
@@ -231,13 +308,16 @@ const SendMessages = () => {
             <Typography variant="h6" align="center" gutterBottom>
               עבור נכסים נבחרים
             </Typography>
+            <Typography variant="h6" align="center" gutterBottom>
+              סה"כ הודעות שנשלחו היום: {totalMessages} / {DAILY_MESSAGE_LIMIT}
+            </Typography>
           </Grid>
         </Grid>
         
         <Grid container spacing={3}>
           <Grid item xs={12} md={6}>
             <SMCustomerList 
-              eligibleCustomers={selectedCustomer ? [selectedCustomer] : eligibleCustomers}
+              eligibleCustomers={cachedEligibleCustomers}
               selectedCustomers={selectedCustomers}
               setSelectedCustomers={setSelectedCustomers}
             />
@@ -283,6 +363,7 @@ const SendMessages = () => {
             <Button onClick={() => handleNavigate('/properties')}>דף נכסים</Button>
             <Button onClick={() => handleNavigate('/customers')}>דף לקוחות</Button>
             <Button onClick={() => handleNavigate('/')}>דף הבית</Button>
+            <Button onClick={() => handleNavigate('/chat')}>דף צ'אט</Button>
           </DialogContent>
         </Dialog>
 

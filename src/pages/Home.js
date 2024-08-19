@@ -174,7 +174,7 @@ const Home = () => {
 
   const fetchProperties = async () => {
     try {
-      const response = await axios.get('http://localhost:5001/api/properties');
+      const response = await axios.get(`${process.env.REACT_APP_API_BASE_URL}/properties`);
       console.log('Properties fetched:', response.data);
       setProperties(response.data);
     } catch (error) {
@@ -189,7 +189,7 @@ const Home = () => {
 
   const fetchCustomers = async () => {
     try {
-      const response = await axios.get('http://localhost:5001/api/customers');
+      const response = await axios.get(`${process.env.REACT_APP_API_BASE_URL}/customers`);
       console.log('Customers fetched:', response.data);
       setCustomers(response.data);
     } catch (error) {
@@ -204,7 +204,7 @@ const Home = () => {
 
   const fetchUnreadMessages = async () => {
     try {
-      const response = await axios.get('http://localhost:5001/api/messages/unread');
+      const response = await axios.get(`${process.env.REACT_APP_API_BASE_URL}/messages/unread`);
       console.log('Unread messages count:', response.data);
       setUnreadMessages(response.data.count);
     } catch (error) {
