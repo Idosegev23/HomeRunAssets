@@ -6,7 +6,6 @@ import { CacheProvider } from '@emotion/react';
 import createCache from '@emotion/cache';
 import { prefixer } from 'stylis';
 import rtlPlugin from 'stylis-plugin-rtl';
-import SMCustomerList from './SMCustomerList';
 import MessageEditor from './MessageEditor';
 import './SendMessages.css';
 import axios from 'axios';
@@ -30,7 +29,6 @@ const SendMessages = () => {
   const navigate = useNavigate();
   const { selectedCustomer, selectedProperties, eligibleCustomers } = location.state || {};
 
-  const [selectedCustomers, setSelectedCustomers] = useState([]);
   const [customMessage, setCustomMessage] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
@@ -51,6 +49,16 @@ const SendMessages = () => {
     const storedTotal = localStorage.getItem('totalMessages');
     return storedTotal ? parseInt(storedTotal, 10) : 0;
   });
+  const [overrideTimeRestriction, setOverrideTimeRestriction] = useState(false);
+  const [openTimeOverrideDialog, setOpenTimeOverrideDialog] = useState(false);
+
+  const cachedEligibleCustomers = useMemo(() => {
+    return selectedCustomer ? [selectedCustomer] : (eligibleCustomers || []);
+  }, [selectedCustomer, eligibleCustomers]);
+
+  const [selectedCustomers, setSelectedCustomers] = useState(() => 
+    cachedEligibleCustomers.map(customer => customer.id)
+  );
 
   useEffect(() => {
     localStorage.setItem('dailyMessageCount', dailyMessageCount.toString());
@@ -74,10 +82,6 @@ const SendMessages = () => {
 
     return () => clearTimeout(timeoutId);
   }, []);
-
-  const cachedEligibleCustomers = useMemo(() => {
-    return selectedCustomer ? [selectedCustomer] : (eligibleCustomers || []);
-  }, [selectedCustomer, eligibleCustomers]);
 
   useEffect(() => {
     if (!location.state) {
@@ -133,6 +137,11 @@ const SendMessages = () => {
   }, []);
 
   const isWithinAllowedTime = useCallback(() => {
+    if (overrideTimeRestriction) {
+      console.log("Time restriction override is active");
+      return true;
+    }
+
     const now = new Date();
     const hours = now.getHours();
     const day = now.getDay();
@@ -140,13 +149,13 @@ const SendMessages = () => {
 
     console.log(`Checking allowed time: Hour ${hours}, Day ${day}, Holiday: ${holiday}`);
 
-    if (holiday || day === 6 || (day === 5 && hours >= 14) || hours >= 20) {
+    if (holiday || day === 6 || (day === 5 && hours >= 14) || hours >= 20 || hours < 8) {
       console.log("Outside allowed time");
       return false;
     }
     console.log("Within allowed time");
     return true;
-  }, []);
+  }, [overrideTimeRestriction]);
 
   const sendMessage = useCallback(async (chatId, personalizedMessage) => {
     const retries = 3;
@@ -184,7 +193,6 @@ const SendMessages = () => {
   const handleSendMessages = useCallback(async () => {
     console.log("Starting handleSendMessages");
     setOpenConfirmDialog(false);
-    setLoading(true);
     setProgress(0);
     setBackgroundSending(true);
 
@@ -195,22 +203,20 @@ const SendMessages = () => {
       console.log("Daily message limit reached");
       setError("כמות ההודעות המקסימלית להיום הושגה. ניתן לשלוח הודעות נוספות מחר.");
       setOpenSnackbar(true);
-      setLoading(false);
+      setBackgroundSending(false);
       return;
     }
 
     const sendMessagesInBackground = async () => {
       console.log("Starting sendMessagesInBackground");
+      setLoading(true);
       console.log("Is within allowed time:", isWithinAllowedTime());
       for (let i = 0; i < totalCustomers; i++) {
         console.log(`Processing customer ${i + 1} of ${totalCustomers}`);
         if (!isWithinAllowedTime()) {
           console.log("Outside allowed time for sending messages");
           const holidayName = getHolidayName(new Date());
-          setError(holidayName 
-            ? `היום חג ישראלי (${holidayName}), ולכן לא ניתן לשלוח הודעות.` 
-            : "לא ניתן לשלוח הודעות בשעה או ביום הנוכחיים. ההודעות יישלחו בזמן המתאים הבא.");
-          setOpenSnackbar(true);
+          setOpenTimeOverrideDialog(true);
           break;
         }
 
@@ -278,6 +284,7 @@ const SendMessages = () => {
       await sendTask();
     }
     console.log("Finished processing queue");
+    setLoading(false);
   }, [sendQueue]);
 
   useEffect(() => {
@@ -289,6 +296,12 @@ const SendMessages = () => {
       handleProcessQueue();
     } else {
       console.log("Conditions not met for processing queue");
+      if (loading) {
+        console.log("Queue processing is already in progress");
+      }
+      if (sendQueue.length === 0) {
+        console.log("Queue is empty");
+      }
     }
   }, [sendQueue, loading, handleProcessQueue]);
 
@@ -307,6 +320,18 @@ const SendMessages = () => {
     setOpenCountdownDialog(false);
     setSendQueue([]);
   }, []);
+
+  const handleTimeOverride = useCallback((override) => {
+    setOverrideTimeRestriction(override);
+    setOpenTimeOverrideDialog(false);
+    if (override) {
+      console.log("Time restriction override activated");
+      handleSendMessages();
+    } else {
+      console.log("Message sending cancelled due to time restrictions");
+      handleCancelSending();
+    }
+  }, [handleSendMessages, handleCancelSending]);
 
   if (error) {
     return (
@@ -356,11 +381,20 @@ const SendMessages = () => {
         
         <Grid container spacing={3}>
           <Grid item xs={12} md={6}>
-            <SMCustomerList 
-              eligibleCustomers={cachedEligibleCustomers}
-              selectedCustomers={selectedCustomers}
-              setSelectedCustomers={setSelectedCustomers}
-            />
+            <Typography variant="h6" gutterBottom>
+              לקוחות נבחרים
+            </Typography>
+            {cachedEligibleCustomers.length > 0 ? (
+              <ul>
+                {cachedEligibleCustomers.map((customer) => (
+                  <li key={customer.id}>
+                    {customer.First_name} {customer.Last_name} - {customer.Cell}
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <Typography>אין לקוחות זמינים</Typography>
+            )}
           </Grid>
           <Grid item xs={12} md={6}>
             <MessageEditor 
@@ -428,6 +462,23 @@ const SendMessages = () => {
               עוד {countdown} שניות לשליחה הבאה כדי שלא ייחסם הנייד
             </Typography>
           </DialogContent>
+        </Dialog>
+
+        <Dialog open={openTimeOverrideDialog} onClose={() => handleTimeOverride(false)}>
+          <DialogTitle>שליחת הודעות מחוץ לשעות המותרות</DialogTitle>
+          <DialogContent>
+            <Typography>
+              השעה הנוכחית היא מחוץ לשעות המותרות לשליחת הודעות. האם ברצונך להמשיך בכל זאת?
+            </Typography>
+          </DialogContent>
+          <DialogActions>
+            <Button onClick={() => handleTimeOverride(false)} color="primary">
+              ביטול
+            </Button>
+            <Button onClick={() => handleTimeOverride(true)} color="secondary">
+              המשך שליחה
+            </Button>
+          </DialogActions>
         </Dialog>
       </Container>
     </CacheProvider>
