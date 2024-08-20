@@ -22,7 +22,6 @@ import {
 } from '@mui/material';
 import { styled, useTheme } from '@mui/material/styles';
 import { Link as RouterLink } from 'react-router-dom';
-const axios = require('axios');
 import { 
   Home as HomeIcon, 
   People as PeopleIcon, 
@@ -59,6 +58,7 @@ ChartJS.register(
   Tooltip,
   Legend
 );
+const axios = require('axios');
 
 // Create rtl cache
 const cacheRtl = createCache({

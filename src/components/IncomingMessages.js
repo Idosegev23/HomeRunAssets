@@ -1,5 +1,4 @@
 import React, { useState, useEffect } from 'react';
-const axios = require('axios');
 import {
   Box,
   Typography,
@@ -29,6 +28,7 @@ import rtlPlugin from 'stylis-plugin-rtl';
 import { prefixer } from 'stylis';
 import { CacheProvider } from '@emotion/react';
 import createCache from '@emotion/cache';
+const axios = require('axios');
 
 // Create rtl cache
 const cacheRtl = createCache({
