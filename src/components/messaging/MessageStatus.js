@@ -1,5 +1,5 @@
 import React from 'react';
-import { useMessageContext } from './MessageContext';
+import { useMessageContext } from '../../context/MessageContext';
 import { Paper, Typography, LinearProgress, Box } from '@mui/material';
 
 const MessageStatus = () => {
