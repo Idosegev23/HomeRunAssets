@@ -1,5 +1,4 @@
-const axios = require('axios');
-
+import axios from 'axios';
 const getBaseUrl = () => {
   if (process.env.NODE_ENV === 'production') {
     return 'https://home-run-assets.vercel.app/api';

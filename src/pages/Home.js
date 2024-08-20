@@ -47,6 +47,7 @@ import { CacheProvider } from '@emotion/react';
 import createCache from '@emotion/cache';
 import { prefixer } from 'stylis';
 import Button from '@mui/material/Button';
+import axios from 'axios';
 
 // Register Chart.js components
 ChartJS.register(
@@ -58,8 +59,6 @@ ChartJS.register(
   Tooltip,
   Legend
 );
-const axios = require('axios');
-
 // Create rtl cache
 const cacheRtl = createCache({
   key: 'muirtl',

@@ -28,8 +28,7 @@ import rtlPlugin from 'stylis-plugin-rtl';
 import { prefixer } from 'stylis';
 import { CacheProvider } from '@emotion/react';
 import createCache from '@emotion/cache';
-const axios = require('axios');
-
+import axios from 'axios';
 // Create rtl cache
 const cacheRtl = createCache({
   key: 'muirtl',
