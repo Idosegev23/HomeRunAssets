@@ -1,11 +1,13 @@
 import React from 'react';
-import { useMessageContext } from '../../context/MessageContext';
-import { Paper, Typography, LinearProgress, Box } from '@mui/material';
+import { useMessageContext } from '../context/MessageContext';
+import { Paper, Typography, Button, Box } from '@mui/material';
+import { useNavigate } from 'react-router-dom';
 
 const MessageStatus = () => {
   const { state } = useMessageContext();
+  const navigate = useNavigate();
 
-  if (!state.sending && state.queue.length === 0) return null;
+  if (state.queue.length === 0 && !state.sending) return null;
 
   return (
     <Paper 
@@ -19,23 +21,23 @@ const MessageStatus = () => {
         zIndex: 1000
       }}
     >
-      {state.sending ? (
-        <>
-          <Typography variant="body2" gutterBottom>
-            שולח הודעות: {Math.round(state.progress)}%
-          </Typography>
-          <LinearProgress variant="determinate" value={state.progress} />
-          <Box mt={1}>
-            <Typography variant="caption">
-              {state.totalMessages - state.queue.length} מתוך {state.totalMessages} הודעות נשלחו
-            </Typography>
-          </Box>
-        </>
-      ) : (
-        <Typography variant="body2">
-          הודעות בתור: {state.queue.length}
-        </Typography>
-      )}
+      <Typography variant="h6" gutterBottom>סטטוס הודעות</Typography>
+      <Typography variant="body2">
+        {state.sending ? 'שולח הודעות' : 'ממתין לשליחה'}
+      </Typography>
+      <Typography variant="body2">
+        הודעות בתור: {state.queue.length}
+      </Typography>
+      <Box mt={2}>
+        <Button 
+          variant="contained" 
+          color="primary" 
+          onClick={() => navigate('/message-queue')}
+          fullWidth
+        >
+          נהל תור הודעות
+        </Button>
+      </Box>
     </Paper>
   );
 };

@@ -19,6 +19,7 @@ import './index.css';
 import IncomingMessages from './components/IncomingMessages';
 import { MessageProvider } from './context/MessageContext';
 import MessageStatus from './components/messaging/MessageStatus';
+import MessageQueue from './pages/MessageQueue'; // נוסיף את הדף החדש של תור ההודעות
 
 const theme = createTheme({
   direction: 'rtl',
@@ -59,6 +60,7 @@ function App() {
                 <Route path="/building" element={<Building />} />
                 <Route path="/add-customer" element={<AddCustomer />} />
                 <Route path="/add-property" element={<AddProperty />} />
+                <Route path="/message-queue" element={<MessageQueue />} /> {/* הוספנו ניתוב לדף תור ההודעות */}
               </Routes>
             </Container>
             <MessageStatus />

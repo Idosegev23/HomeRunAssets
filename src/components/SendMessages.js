@@ -11,7 +11,6 @@ import './SendMessages.css';
 import { useMessageContext } from '../context/MessageContext';
 import { isHoliday, getHolidayName } from '../utils/israeliHolidays';
 
-// Create RTL cache
 const cacheRtl = createCache({
   key: 'muirtl',
   stylisPlugins: [prefixer, rtlPlugin],
@@ -132,6 +131,12 @@ const SendMessages = () => {
       return;
     }
 
+    if (!isWithinAllowedTime()) {
+      console.log("Outside allowed time for sending messages");
+      setOpenTimeOverrideDialog(true);
+      return;
+    }
+
     const messagesToSend = selectedCustomers.map(customerId => {
       const customer = cachedEligibleCustomers.find(c => c.id === customerId);
       const personalizedMessage = replaceTokens(customMessage, customer, selectedProperties);
@@ -147,7 +152,7 @@ const SendMessages = () => {
 
     setOpenSnackbar(true);
     setOpenNavigationDialog(true);
-  }, [selectedCustomers, messageState.dailyMessageCount, cachedEligibleCustomers, customMessage, selectedProperties, dispatch, replaceTokens]);
+  }, [selectedCustomers, messageState.dailyMessageCount, cachedEligibleCustomers, customMessage, selectedProperties, dispatch, replaceTokens, isWithinAllowedTime]);
 
   const handleCloseSnackbar = () => setOpenSnackbar(false);
 
@@ -210,6 +215,9 @@ const SendMessages = () => {
               </Typography>
               <Typography variant="subtitle1" align="center" gutterBottom>
                 סה"כ הודעות שנשלחו היום: {messageState.dailyMessageCount} / {DAILY_MESSAGE_LIMIT}
+              </Typography>
+              <Typography variant="subtitle1" align="center" gutterBottom>
+                ניתן לשלוח עוד {DAILY_MESSAGE_LIMIT - messageState.dailyMessageCount} הודעות היום
               </Typography>
             </Grid>
           </Grid>
@@ -292,6 +300,7 @@ const SendMessages = () => {
             <Button onClick={() => handleNavigate('/customers')}>דף לקוחות</Button>
             <Button onClick={() => handleNavigate('/')}>דף הבית</Button>
             <Button onClick={() => handleNavigate('/chat')}>דף צ'אט</Button>
+            <Button onClick={() => handleNavigate('/message-queue')}>תור הודעות</Button>
           </DialogContent>
         </Dialog>
 
