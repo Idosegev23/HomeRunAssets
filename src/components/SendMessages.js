@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { Container, Grid, Typography, Snackbar, Dialog, DialogTitle, DialogContent, DialogActions, Button, AppBar, Toolbar, CircularProgress, Paper, List, ListItem, ListItemText, Divider } from '@mui/material';
+import { Container, Grid, Typography, Snackbar, Dialog, DialogTitle, DialogContent, DialogActions, Button, AppBar, Toolbar, CircularProgress, Paper, List, ListItem, ListItemText, Divider, Checkbox, FormControlLabel } from '@mui/material';
 import MuiAlert from '@mui/material/Alert';
 import { CacheProvider } from '@emotion/react';
 import createCache from '@emotion/cache';
@@ -36,14 +36,11 @@ const SendMessages = () => {
   const [dataReady, setDataReady] = useState(false);
   const [overrideTimeRestriction, setOverrideTimeRestriction] = useState(false);
   const [openTimeOverrideDialog, setOpenTimeOverrideDialog] = useState(false);
+  const [selectedCustomers, setSelectedCustomers] = useState([]);
 
   const cachedEligibleCustomers = useMemo(() => {
     return selectedCustomer ? [selectedCustomer] : (eligibleCustomers || []);
   }, [selectedCustomer, eligibleCustomers]);
-
-  const [selectedCustomers, setSelectedCustomers] = useState(() => 
-    cachedEligibleCustomers.map(customer => customer.id)
-  );
 
   useEffect(() => {
     if (!location.state) {
@@ -66,10 +63,26 @@ const SendMessages = () => {
       return;
     }
 
-    console.log(`Setting ${customers.length} selected customers`);
+    console.log(`Setting ${customers.length} eligible customers`);
     setSelectedCustomers(customers.map(customer => customer.id));
     setDataReady(true);
   }, [location.state, selectedProperties, cachedEligibleCustomers]);
+
+  const handleCustomerToggle = (customerId) => {
+    setSelectedCustomers(prev => 
+      prev.includes(customerId)
+        ? prev.filter(id => id !== customerId)
+        : [...prev, customerId]
+    );
+  };
+
+  const handleSelectAllCustomers = () => {
+    setSelectedCustomers(cachedEligibleCustomers.map(customer => customer.id));
+  };
+
+  const handleDeselectAllCustomers = () => {
+    setSelectedCustomers([]);
+  };
 
   const replaceTokens = useCallback((message, customer, properties) => {
     console.log("Replacing tokens in message");
@@ -228,14 +241,21 @@ const SendMessages = () => {
                 <Typography variant="h6" gutterBottom>
                   לקוחות נבחרים
                 </Typography>
+                <Button onClick={handleSelectAllCustomers}>בחר הכל</Button>
+                <Button onClick={handleDeselectAllCustomers}>בטל בחירת הכל</Button>
                 {cachedEligibleCustomers.length > 0 ? (
                   <List>
                     {cachedEligibleCustomers.map((customer) => (
                       <React.Fragment key={customer.id}>
                         <ListItem>
-                          <ListItemText 
-                            primary={`${customer.First_name} ${customer.Last_name}`}
-                            secondary={customer.Cell}
+                          <FormControlLabel
+                            control={
+                              <Checkbox
+                                checked={selectedCustomers.includes(customer.id)}
+                                onChange={() => handleCustomerToggle(customer.id)}
+                              />
+                            }
+                            label={`${customer.First_name} ${customer.Last_name} - ${customer.Cell}`}
                           />
                         </ListItem>
                         <Divider />
@@ -320,7 +340,7 @@ const SendMessages = () => {
             </Button>
           </DialogActions>
         </Dialog>
-      </Container>
+        </Container>
     </CacheProvider>
   );
 };
