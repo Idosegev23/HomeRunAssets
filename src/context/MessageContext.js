@@ -65,7 +65,7 @@ export function MessageProvider({ children }) {
     }
 
     try {
-      const response = await axios.post(`${apiBaseUrl}/api/sendMessage`, {
+      const response = await axios.post(`${apiBaseUrl}/sendMessage`, {
         phoneNumber: message.customer.Cell,
         text: message.message
       }, {
