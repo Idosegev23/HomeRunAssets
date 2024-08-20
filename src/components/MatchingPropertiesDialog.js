@@ -63,7 +63,8 @@ const MatchingPropertiesDialog = ({ open, onClose, selectedCustomer, onSendMessa
         matchingProperties.find(property => property.id === id)
       );
 
-      await onSendMessage(cleanCustomer, cleanProperties);
+      // שינוי כאן: שליחת מערך של מזהי נכסים במקום אובייקטים מלאים
+      await onSendMessage(cleanCustomer, selectedProperties);
       onClose();
     } catch (error) {
       console.error('Error sending messages:', error);

@@ -91,6 +91,22 @@ export default async function handler(req, res) {
 
                     console.log('Matching properties:', matchingProperties.length);
                     return res.status(200).json(matchingProperties);
+                } else if (resource === 'properties' && id) {
+                    console.log('Fetching properties:', id);
+                    // בדיקה אם id הוא מערך
+                    const propertyIds = Array.isArray(id) ? id : [id];
+                    
+                    const properties = await Promise.all(
+                        propertyIds.map(async (propId) => {
+                            const record = await base('Properties').find(propId);
+                            return {
+                                id: record.id,
+                                ...record.fields
+                            };
+                        })
+                    );
+
+                    return res.status(200).json(properties);
                 } else if (id) {
                     console.log('Fetching single record for resource:', resource);
                     const record = await base(resource).find(id);
