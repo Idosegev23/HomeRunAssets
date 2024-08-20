@@ -7,7 +7,7 @@ import { prefixer } from 'stylis';
 import { CacheProvider } from '@emotion/react';
 import createCache from '@emotion/cache';
 import Navbar from './components/Navbar.js';import Home from './pages/Home.js';import PropertyList from './components/PropertyList.js';import CustomerList from './components/CustomerList.js';import SendMessages from './components/SendMessages.js';import Building from './pages/building.js';import AddCustomer from './pages/AddCustomer.js';import AddProperty from './pages/AddProperty.js';import ChatInterface from './components/ChatInterface.js';import './index.css';
-import IncomingMessages from './components/IncomingMessages.js';import { MessageProvider } from './context/MessageContext.js';import MessageStatus from './components/messaging/MessageStatus.js';import MessageQueue from './pages/MessageQueue'; // נוסיף את הדף החדש של תור ההודעות
+import IncomingMessages from './components/IncomingMessages.js';import { MessageProvider } from './context/MessageContext.js';import MessageStatus from './components/messaging/MessageStatus.js';import MessageQueue from './pages/MessageQueue.js'; // נוסיף את הדף החדש של תור ההודעות
 
 const theme = createTheme({
   direction: 'rtl',
