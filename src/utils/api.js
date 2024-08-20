@@ -1,4 +1,4 @@
-import axios from 'axios';
+const axios = require('axios');
 
 const getBaseUrl = () => {
   if (process.env.NODE_ENV === 'production') {

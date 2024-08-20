@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useReducer, useEffect } from 'react';
-import axios from 'axios';
+const axios = require('axios');
 
 const MessageContext = createContext();
 

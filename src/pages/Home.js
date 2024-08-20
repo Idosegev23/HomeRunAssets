@@ -22,7 +22,7 @@ import {
 } from '@mui/material';
 import { styled, useTheme } from '@mui/material/styles';
 import { Link as RouterLink } from 'react-router-dom';
-import axios from 'axios';
+const axios = require('axios');
 import { 
   Home as HomeIcon, 
   People as PeopleIcon, 

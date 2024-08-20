@@ -1,4 +1,4 @@
-import axios from 'axios';
+const axios = require('axios');
 import Airtable from 'airtable';
 
 const AIRTABLE_API_KEY = process.env.AIRTABLE_API_KEY;

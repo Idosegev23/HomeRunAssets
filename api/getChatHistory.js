@@ -1,4 +1,4 @@
-import axios from 'axios';
+const axios = require('axios');
 
 const GREENAPI_ID = process.env.GREENAPI_ID;
 const GREENAPI_APITOKENINSTANCE = process.env.GREENAPI_APITOKENINSTANCE;
