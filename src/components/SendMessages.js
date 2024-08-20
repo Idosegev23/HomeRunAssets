@@ -6,11 +6,8 @@ import { CacheProvider } from '@emotion/react';
 import createCache from '@emotion/cache';
 import { prefixer } from 'stylis';
 import rtlPlugin from 'stylis-plugin-rtl';
-import MessageEditor from './MessageEditor';
-import './SendMessages.css';
-import { useMessageContext } from '../context/MessageContext';
-import { isHoliday, getHolidayName } from '../utils/israeliHolidays';
-
+import MessageEditor from './MessageEditor.js';import './SendMessages.css';
+import { useMessageContext } from '../context/MessageContext.js';import { isHoliday, getHolidayName } from '../utils/israeliHolidays.js';
 const cacheRtl = createCache({
   key: 'muirtl',
   stylisPlugins: [prefixer, rtlPlugin],

@@ -20,10 +20,8 @@ import AttachFileIcon from '@mui/icons-material/AttachFile';
 import SearchIcon from '@mui/icons-material/Search';
 import ImageIcon from '@mui/icons-material/Image';
 import VideoIcon from '@mui/icons-material/Videocam';
-import api from '../utils/api';
-import { debounce } from 'lodash';
-import ErrorBoundary from './ErrorBoundary';
-
+import api from '../utils/api.js';import { debounce } from 'lodash';
+import ErrorBoundary from './ErrorBoundary.js';
 const ChatInterface = () => {
   const [chats, setChats] = useState([]);
   const [selectedChat, setSelectedChat] = useState(null);

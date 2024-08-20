@@ -2,8 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { Container, Typography, Table, TableBody, TableCell, TableHead, TableRow, CircularProgress, Snackbar } from '@mui/material';
 import { styled } from '@mui/material/styles';
 import MuiAlert from '@mui/material/Alert';
-import api from '../utils/api';
-
+import api from '../utils/api.js';
 const Alert = React.forwardRef(function Alert(props, ref) {
   return <MuiAlert elevation={6} ref={ref} variant="filled" {...props} />;
 });

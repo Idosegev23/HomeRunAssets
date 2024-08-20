@@ -3,8 +3,7 @@ import { Paper, Typography, FormControl, InputLabel, Select, MenuItem, TextField
 import SendIcon from '@mui/icons-material/Send';
 import SaveIcon from '@mui/icons-material/Save';
 import CancelIcon from '@mui/icons-material/Cancel';
-import messageTemplates from './messageTemplates.json';
-
+import messageTemplates from './messageTemplates.json.js';
 const MessageEditor = ({ customMessage, setCustomMessage, loading, backgroundSending, progress, selectedCustomers, handleSendMessages, handleCancelSending }) => {
   const [selectedTemplate, setSelectedTemplate] = useState('');
 

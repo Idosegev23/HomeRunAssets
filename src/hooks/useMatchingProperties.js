@@ -1,6 +1,5 @@
 import { useState, useCallback } from 'react';
-import api from '../utils/api';
-
+import api from '../utils/api.js';
 export const useMatchingProperties = () => {
   const [matchingProperties, setMatchingProperties] = useState([]);
   const [loading, setLoading] = useState(false);

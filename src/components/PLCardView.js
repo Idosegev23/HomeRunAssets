@@ -1,8 +1,7 @@
 import React from 'react';
 import { Grid, CardContent, CardActions, Typography, Button } from '@mui/material';
 import SendIcon from '@mui/icons-material/Send';
-import { PropertyCard } from './PropertyListStyles';
-
+import { PropertyCard } from './PropertyListStyles.js';
 const PLCardView = ({ properties, handleSendMessages }) => {
   const parseCurrency = (value) => {
     if (typeof value === 'number') return value;

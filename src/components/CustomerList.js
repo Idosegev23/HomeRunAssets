@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import api from '../utils/api';
-import { ThemeProvider, createTheme, styled } from '@mui/material/styles';
+import api from '../utils/api.js';import { ThemeProvider, createTheme, styled } from '@mui/material/styles';
 import { CacheProvider } from '@emotion/react';
 import rtlPlugin from 'stylis-plugin-rtl';
 import createCache from '@emotion/cache';
@@ -22,12 +21,7 @@ import {
 import RefreshIcon from '@mui/icons-material/Refresh';
 import PersonAddIcon from '@mui/icons-material/PersonAdd';
 import FilterListIcon from '@mui/icons-material/FilterList';
-import CustomerTable from './CustomerTable';
-import CustomerFilterDialog from './CustomerFilterDialog';
-import MatchingPropertiesDialog from './MatchingPropertiesDialog';
-import CustomerEditDialog from './CustomerEditDialog';
-import { useMatchingProperties } from '../hooks/useMatchingProperties';
-import './CustomerList.css';
+import CustomerTable from './CustomerTable.js';import CustomerFilterDialog from './CustomerFilterDialog.js';import MatchingPropertiesDialog from './MatchingPropertiesDialog.js';import CustomerEditDialog from './CustomerEditDialog.js';import { useMatchingProperties } from '../hooks/useMatchingProperties.js';import './CustomerList.css';
 
 // יצירת קאש RTL
 const cacheRtl = createCache({

@@ -1,7 +1,6 @@
 import React from 'react';
 import { Dialog, DialogTitle, DialogContent, DialogActions, Grid, TextField, Typography, Slider, Button, Fade } from '@mui/material';
-import { SliderContainer } from './PropertyListStyles';
-
+import { SliderContainer } from './PropertyListStyles.js';
 const PLFilterDialog = ({
   open,
   onClose,

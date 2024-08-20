@@ -1,6 +1,5 @@
 import React from 'react';
-import { useMessageContext } from '../../context/MessageContext';
-import { Paper, Typography, Button, Box } from '@mui/material';
+import { useMessageContext } from '../../context/MessageContext.js';import { Paper, Typography, Button, Box } from '@mui/material';
 import { useNavigate } from 'react-router-dom';
 
 const MessageStatus = () => {

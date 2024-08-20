@@ -3,8 +3,7 @@ import { Toolbar, Typography, Box, IconButton, Switch } from '@mui/material';
 import RefreshIcon from '@mui/icons-material/Refresh';
 import ViewModuleIcon from '@mui/icons-material/ViewModule';
 import ViewListIcon from '@mui/icons-material/ViewList';
-import { StyledAppBar } from './PropertyListStyles';
-
+import { StyledAppBar } from './PropertyListStyles.js';
 const PLAppBar = ({ isDarkMode, toggleDarkMode, viewMode, toggleViewMode, fetchProperties }) => {
   return (
     <StyledAppBar position="static">

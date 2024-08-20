@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import api from '../utils/api';
-import {
+import api from '../utils/api.js';import {
   TextField, Button, Grid, Typography, CircularProgress, IconButton,
   Dialog, DialogTitle, DialogContent, DialogActions, Slider,
   Container, useTheme, useMediaQuery, ThemeProvider, createTheme,
@@ -19,11 +18,7 @@ import createCache from '@emotion/cache';
 import { prefixer } from 'stylis';
 
 // Import custom components
-import PLTableView from './PLTableView';
-import PLCardView from './PLCardView';
-import PLFilterDialog from './PLFilterDialog';
-import { StyledAppBar, Root, SliderContainer } from './PropertyListStyles';
-
+import PLTableView from './PLTableView.js';import PLCardView from './PLCardView.js';import PLFilterDialog from './PLFilterDialog.js';import { StyledAppBar, Root, SliderContainer } from './PropertyListStyles.js';
 // Create RTL cache
 const cacheRtl = createCache({
   key: 'muirtl',

@@ -14,8 +14,7 @@ import {
   CircularProgress, 
   Box
 } from '@mui/material';
-import api from '../utils/api';
-
+import api from '../utils/api.js';
 const MatchingPropertiesDialog = ({ open, onClose, selectedCustomer, onSendMessage }) => {
   const [selectedProperties, setSelectedProperties] = useState([]);
   const [matchingProperties, setMatchingProperties] = useState([]);
