@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Container, TextField, Button, Typography, Box, Snackbar, Paper, Grid, InputAdornment } from '@mui/material';
-import { styled } from '@mui/material/styles';
+import { styled } from '@mui/material/styles.js';
 import MuiAlert from '@mui/material/Alert';
 import CircularProgress from '@mui/material/CircularProgress';
 import PersonAddIcon from '@mui/icons-material/PersonAdd';

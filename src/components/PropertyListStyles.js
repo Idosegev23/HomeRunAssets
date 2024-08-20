@@ -1,4 +1,4 @@
-import { styled } from '@mui/material/styles';
+import { styled } from '@mui/material/styles.js';
 import { AppBar, TableContainer, Table, TableCell, TableRow, Card } from '@mui/material';
 
 export const StyledAppBar = styled(AppBar)(({ theme }) => ({

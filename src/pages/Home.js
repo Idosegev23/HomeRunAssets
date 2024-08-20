@@ -20,7 +20,7 @@ import {
   ListItemIcon,
   Checkbox
 } from '@mui/material';
-import { styled, useTheme } from '@mui/material/styles';
+import { styled, useTheme } from '@mui/material/styles.js';
 import { Link as RouterLink } from 'react-router-dom';
 import { 
   Home as HomeIcon, 

@@ -23,7 +23,7 @@ import {
   Label as LabelIcon,
   Refresh as RefreshIcon,
 } from '@mui/icons-material';
-import { styled } from '@mui/material/styles';
+import { styled } from '@mui/material/styles.js';
 import rtlPlugin from 'stylis-plugin-rtl';
 import { prefixer } from 'stylis';
 import { CacheProvider } from '@emotion/react';

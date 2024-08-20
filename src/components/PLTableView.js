@@ -12,7 +12,7 @@ import {
   IconButton
 } from '@mui/material';
 import SendIcon from '@mui/icons-material/Send';
-import { styled } from '@mui/material/styles';
+import { styled } from '@mui/material/styles.js';
 
 const StyledTableContainer = styled(TableContainer)(({ theme }) => ({
   maxHeight: '60vh',
