@@ -33,10 +33,14 @@ const MatchingPropertiesDialog = ({ open, onClose, selectedCustomer, onSendMessa
     setError(null);
     try {
       const response = await api.get(`/dataHandler?resource=matchingProperties&id=${selectedCustomer.id}`);
-      setMatchingProperties(response.data);
+      if (response.data && Array.isArray(response.data)) {
+        setMatchingProperties(response.data);
+      } else {
+        throw new Error('Invalid data received from server');
+      }
     } catch (error) {
       console.error('Error fetching matching properties:', error);
-      setError(`Failed to fetch matching properties: ${error.message}`);
+      setError(`Failed to fetch matching properties: ${error.response?.data?.error || error.message}`);
     } finally {
       setLoading(false);
     }
