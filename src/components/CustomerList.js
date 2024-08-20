@@ -27,7 +27,6 @@ import CustomerFilterDialog from './CustomerFilterDialog';
 import MatchingPropertiesDialog from './MatchingPropertiesDialog';
 import CustomerEditDialog from './CustomerEditDialog';
 import { useMatchingProperties } from '../hooks/useMatchingProperties';
-import { useSnackbar } from '../hooks/useSnackbar';
 import './CustomerList.css';
 
 // יצירת קאש RTL
@@ -78,7 +77,7 @@ const CustomerList = () => {
   const [openMatchingPropertiesDialog, setOpenMatchingPropertiesDialog] = useState(false);
   const [selectedCustomer, setSelectedCustomer] = useState(null);
   const [editingCustomer, setEditingCustomer] = useState(null);
-  const { snackbar, showSnackbar } = useSnackbar();
+  const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'info' });
 
   const { matchingProperties, loading: loadingProperties, error: propertiesError, findMatchingProperties } = useMatchingProperties();
 
@@ -87,13 +86,13 @@ const CustomerList = () => {
       setLoading(true);
       const response = await api.get('/dataHandler?resource=customers');
       setCustomers(response.data);
-      showSnackbar('רשימת הלקוחות נטענה בהצלחה', 'success');
+      setSnackbar({ open: true, message: 'רשימת הלקוחות נטענה בהצלחה', severity: 'success' });
     } catch (err) {
-      showSnackbar(`שגיאה בטעינת הלקוחות: ${err.message}`, 'error');
+      setSnackbar({ open: true, message: `שגיאה בטעינת הלקוחות: ${err.message}`, severity: 'error' });
     } finally {
       setLoading(false);
     }
-  }, [showSnackbar]);
+  }, []);
 
   useEffect(() => {
     fetchCustomers();
@@ -141,12 +140,12 @@ const CustomerList = () => {
 
   const handleSendMessage = useCallback(async (customer, selectedProperties = []) => {
     if (!customer) {
-      showSnackbar('לא נבחר לקוח', 'error');
+      setSnackbar({ open: true, message: 'לא נבחר לקוח', severity: 'error' });
       return;
     }
   
     if (selectedProperties.length === 0) {
-      showSnackbar('לא נבחרו נכסים', 'error');
+      setSnackbar({ open: true, message: 'לא נבחרו נכסים', severity: 'error' });
       return;
     }
 
@@ -171,25 +170,25 @@ const CustomerList = () => {
       });
     } catch (error) {
       console.error('Error preparing data for navigation:', error);
-      showSnackbar('שגיאה בהכנת הנתונים לשליחת הודעות', 'error');
+      setSnackbar({ open: true, message: 'שגיאה בהכנת הנתונים לשליחת הודעות', severity: 'error' });
     }
-  }, [navigate, matchingProperties, showSnackbar]);
+  }, [navigate, matchingProperties]);
 
   const saveCustomer = useCallback(async (customer) => {
     try {
       if (customer.id) {
         await api.put(`/dataHandler?resource=customers&id=${customer.id}`, customer);
-        showSnackbar('הלקוח עודכן בהצלחה', 'success');
+        setSnackbar({ open: true, message: 'הלקוח עודכן בהצלחה', severity: 'success' });
       } else {
         await api.post('/dataHandler?resource=customers', customer);
-        showSnackbar('הלקוח נוסף בהצלחה', 'success');
+        setSnackbar({ open: true, message: 'הלקוח נוסף בהצלחה', severity: 'success' });
       }
       setEditingCustomer(null);
       fetchCustomers();
     } catch (err) {
-      showSnackbar(`שגיאה בשמירת הלקוח: ${err.message}`, 'error');
+      setSnackbar({ open: true, message: `שגיאה בשמירת הלקוח: ${err.message}`, severity: 'error' });
     }
-  }, [fetchCustomers, showSnackbar]);
+  }, [fetchCustomers]);
 
   const sortedCustomers = useMemo(() => {
     return [...customers].sort((a, b) => {
@@ -277,9 +276,9 @@ const CustomerList = () => {
           <Snackbar 
             open={snackbar.open} 
             autoHideDuration={6000} 
-            onClose={() => showSnackbar(null)}
+            onClose={() => setSnackbar({ ...snackbar, open: false })}
           >
-            <Alert onClose={() => showSnackbar(null)} severity={snackbar.severity} sx={{ width: '100%' }}>
+            <Alert onClose={() => setSnackbar({ ...snackbar, open: false })} severity={snackbar.severity} sx={{ width: '100%' }}>
               {snackbar.message}
             </Alert>
           </Snackbar>
