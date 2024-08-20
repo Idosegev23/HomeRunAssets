@@ -153,6 +153,7 @@ const SendMessages = () => {
     for (let i = 0; i < retries; i++) {
       try {
         console.log(`Attempting to send message to ${chatId}, attempt ${i + 1}`);
+        console.log("API Base URL:", process.env.NEXT_PUBLIC_API_BASE_URL);
         const response = await axios.post(`${process.env.NEXT_PUBLIC_API_BASE_URL}/api/sendMessage`, {
           phoneNumber: chatId,
           text: personalizedMessage
@@ -200,6 +201,7 @@ const SendMessages = () => {
 
     const sendMessagesInBackground = async () => {
       console.log("Starting sendMessagesInBackground");
+      console.log("Is within allowed time:", isWithinAllowedTime());
       for (let i = 0; i < totalCustomers; i++) {
         console.log(`Processing customer ${i + 1} of ${totalCustomers}`);
         if (!isWithinAllowedTime()) {
@@ -268,16 +270,25 @@ const SendMessages = () => {
   }, [selectedCustomers, dailyMessageCount, isWithinAllowedTime, cachedEligibleCustomers, customMessage, selectedProperties, sendMessage, replaceTokens]);
 
   const handleProcessQueue = useCallback(async () => {
+    console.log("Starting handleProcessQueue");
+    console.log("Current queue length:", sendQueue.length);
     while (sendQueue.length > 0) {
       const sendTask = sendQueue.shift();
+      console.log("Executing next task in queue");
       await sendTask();
     }
+    console.log("Finished processing queue");
   }, [sendQueue]);
 
   useEffect(() => {
+    console.log("useEffect for queue processing triggered");
+    console.log("Current queue length:", sendQueue.length);
+    console.log("Current loading state:", loading);
     if (sendQueue.length > 0 && !loading) {
-      console.log("Processing send queue");
+      console.log("Conditions met, calling handleProcessQueue");
       handleProcessQueue();
+    } else {
+      console.log("Conditions not met for processing queue");
     }
   }, [sendQueue, loading, handleProcessQueue]);
 
@@ -350,7 +361,7 @@ const SendMessages = () => {
               selectedCustomers={selectedCustomers}
               setSelectedCustomers={setSelectedCustomers}
             />
-</Grid>
+          </Grid>
           <Grid item xs={12} md={6}>
             <MessageEditor 
               customMessage={customMessage}
@@ -359,7 +370,10 @@ const SendMessages = () => {
               backgroundSending={backgroundSending}
               progress={progress}
               selectedCustomers={selectedCustomers}
-              handleSendMessages={() => setOpenConfirmDialog(true)}
+              handleSendMessages={() => {
+                console.log("Send button clicked");
+                setOpenConfirmDialog(true);
+              }}
               handleCancelSending={handleCancelSending}
             />
           </Grid>
@@ -371,7 +385,10 @@ const SendMessages = () => {
           </Alert>
         </Snackbar>
         
-        <Dialog open={openConfirmDialog} onClose={() => setOpenConfirmDialog(false)}>
+        <Dialog open={openConfirmDialog} onClose={() => {
+          console.log("Closing confirm dialog");
+          setOpenConfirmDialog(false);
+        }}>
           <DialogTitle>אישור שליחת הודעות</DialogTitle>
           <DialogContent>
             <Typography>
@@ -379,8 +396,16 @@ const SendMessages = () => {
             </Typography>
           </DialogContent>
           <DialogActions>
-            <Button onClick={() => setOpenConfirmDialog(false)}>ביטול</Button>
-            <Button onClick={handleSendMessages} color="primary">
+            <Button onClick={() => {
+              console.log("Cancelling send operation");
+              setOpenConfirmDialog(false);
+            }}>
+              ביטול
+            </Button>
+            <Button onClick={() => {
+              console.log("Confirming send operation");
+              handleSendMessages();
+            }} color="primary">
               אישור
             </Button>
           </DialogActions>
