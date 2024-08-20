@@ -14,9 +14,11 @@ import SendMessages from './components/SendMessages';
 import Building from './pages/building';
 import AddCustomer from './pages/AddCustomer';
 import AddProperty from './pages/AddProperty';
-import ChatInterface from './components/ChatInterface'; // הוספת רכיב הצ'אט החי
+import ChatInterface from './components/ChatInterface';
 import './index.css';
 import IncomingMessages from './components/IncomingMessages';
+import { MessageProvider } from './context/MessageContext';
+import MessageStatus from './components/messaging/MessageStatus';
 
 const theme = createTheme({
   direction: 'rtl',
@@ -43,22 +45,25 @@ function App() {
     <CacheProvider value={cacheRtl}>
       <ThemeProvider theme={theme}>
         <CssBaseline />
-        <Router>
-          <Navbar />
-          <Container maxWidth="lg" style={{ marginTop: '2rem' }}>
-            <Routes>
-              <Route path="/" element={<Home />} />
-              <Route path="/properties" element={<PropertyList />} />
-              <Route path="/customers" element={<CustomerList />} />
-              <Route path="/send-messages" element={<SendMessages />} />
-              <Route path="/incoming-messages" element={<IncomingMessages />} />
-              <Route path="/chat" element={<ChatInterface />} /> {/* הוספת מסלול לצ'אט החי */}
-              <Route path="/building" element={<Building />} />
-              <Route path="/add-customer" element={<AddCustomer />} />
-              <Route path="/add-property" element={<AddProperty />} />
-            </Routes>
-          </Container>
-        </Router>
+        <MessageProvider>
+          <Router>
+            <Navbar />
+            <Container maxWidth="lg" style={{ marginTop: '2rem' }}>
+              <Routes>
+                <Route path="/" element={<Home />} />
+                <Route path="/properties" element={<PropertyList />} />
+                <Route path="/customers" element={<CustomerList />} />
+                <Route path="/send-messages" element={<SendMessages />} />
+                <Route path="/incoming-messages" element={<IncomingMessages />} />
+                <Route path="/chat" element={<ChatInterface />} />
+                <Route path="/building" element={<Building />} />
+                <Route path="/add-customer" element={<AddCustomer />} />
+                <Route path="/add-property" element={<AddProperty />} />
+              </Routes>
+            </Container>
+            <MessageStatus />
+          </Router>
+        </MessageProvider>
       </ThemeProvider>
     </CacheProvider>
   );
