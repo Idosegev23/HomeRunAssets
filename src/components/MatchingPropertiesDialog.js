@@ -1,16 +1,53 @@
-import React, { useState } from 'react';
-import { Dialog, DialogTitle, DialogContent, DialogActions, Button, Grid, Card, CardContent, Typography, Checkbox, FormControlLabel, CircularProgress } from '@mui/material';
+import React, { useState, useEffect } from 'react';
+import { 
+  Dialog, 
+  DialogTitle, 
+  DialogContent, 
+  DialogActions, 
+  Button, 
+  Grid, 
+  Card, 
+  CardContent, 
+  Typography, 
+  Checkbox, 
+  FormControlLabel, 
+  CircularProgress, 
+  Box
+} from '@mui/material';
 import api from '../utils/api';
 
-const MatchingPropertiesDialog = ({ open, onClose, matchingProperties, selectedCustomer, onSendMessage, loading, error }) => {
+const MatchingPropertiesDialog = ({ open, onClose, selectedCustomer, onSendMessage }) => {
   const [selectedProperties, setSelectedProperties] = useState([]);
+  const [matchingProperties, setMatchingProperties] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
 
-  const handlePropertyToggle = (property) => {
+  useEffect(() => {
+    if (open && selectedCustomer) {
+      fetchMatchingProperties();
+    }
+  }, [open, selectedCustomer]);
+
+  const fetchMatchingProperties = async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const response = await api.get(`/dataHandler?resource=matchingProperties&id=${selectedCustomer.id}`);
+      setMatchingProperties(response.data);
+    } catch (error) {
+      console.error('Error fetching matching properties:', error);
+      setError(`Failed to fetch matching properties: ${error.message}`);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handlePropertyToggle = (propertyId) => {
     setSelectedProperties(prevSelected => {
-      if (prevSelected.includes(property)) {
-        return prevSelected.filter(p => p !== property);
+      if (prevSelected.includes(propertyId)) {
+        return prevSelected.filter(id => id !== propertyId);
       } else {
-        return [...prevSelected, property];
+        return [...prevSelected, propertyId];
       }
     });
   };
@@ -18,16 +55,15 @@ const MatchingPropertiesDialog = ({ open, onClose, matchingProperties, selectedC
   const handleSendMessages = async () => {
     try {
       const cleanCustomer = { ...selectedCustomer };
-      const cleanProperties = await Promise.all(
-        selectedProperties.map(async (id) => {
-          const response = await api.get('/dataHandler', { params: { resource: 'properties', id } });
-          return { ...response.data };
-        })
+      const cleanProperties = selectedProperties.map(id => 
+        matchingProperties.find(property => property.id === id)
       );
 
-      onSendMessage(cleanCustomer, cleanProperties);
+      await onSendMessage(cleanCustomer, cleanProperties);
+      onClose();
     } catch (error) {
       console.error('Error sending messages:', error);
+      setError(`Failed to send messages: ${error.message}`);
     }
   };
 
@@ -36,9 +72,11 @@ const MatchingPropertiesDialog = ({ open, onClose, matchingProperties, selectedC
       <DialogTitle>נכסים מתאימים</DialogTitle>
       <DialogContent>
         {loading ? (
-          <CircularProgress />
+          <Box display="flex" justifyContent="center" alignItems="center" minHeight="200px">
+            <CircularProgress />
+          </Box>
         ) : error ? (
-          <Typography color="error">שגיאה בטעינת נכסים: {error}</Typography>
+          <Typography color="error">{error}</Typography>
         ) : matchingProperties.length > 0 ? (
           <Grid container spacing={2}>
             {matchingProperties.map(({ id, address, price, rooms, floor, square_meters, totalMatchPercentage, matchDetails }) => (
@@ -70,10 +108,15 @@ const MatchingPropertiesDialog = ({ open, onClose, matchingProperties, selectedC
         )}
       </DialogContent>
       <DialogActions>
-        <Button onClick={handleSendMessages} disabled={selectedProperties.length === 0}>
+        <Button onClick={onClose}>סגור</Button>
+        <Button 
+          onClick={handleSendMessages} 
+          disabled={selectedProperties.length === 0}
+          color="primary"
+          variant="contained"
+        >
           שלח הודעה
         </Button>
-        <Button onClick={onClose}>סגור</Button>
       </DialogActions>
     </Dialog>
   );
