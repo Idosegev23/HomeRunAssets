@@ -22,7 +22,7 @@ import {
 } from '@mui/material';
 import { styled, useTheme } from '@mui/material/styles';
 import { Link as RouterLink } from 'react-router-dom';
-import api from '../utils/api';
+import axios from 'axios';
 import { 
   Home as HomeIcon, 
   People as PeopleIcon, 
@@ -194,7 +194,7 @@ const Home = () => {
 
   const fetchProperties = async () => {
     try {
-      const response = await api.get('/dataHandler', { params: { resource: 'properties' } });
+      const response = await axios.get('https://home-run-assets.vercel.app/api/dataHandler', { params: { resource: 'properties' } });
       console.log('Properties fetched:', response.data);
       setProperties(response.data);
     } catch (error) {
@@ -209,7 +209,7 @@ const Home = () => {
 
   const fetchCustomers = async () => {
     try {
-      const response = await api.get('/dataHandler', { params: { resource: 'customers' } });
+      const response = await axios.get('https://home-run-assets.vercel.app/api/dataHandler', { params: { resource: 'customers' } });
       console.log('Customers fetched:', response.data);
       setCustomers(response.data);
     } catch (error) {
@@ -224,7 +224,7 @@ const Home = () => {
 
   const fetchUnreadMessages = async () => {
     try {
-      const response = await api.get('/dataHandler', { params: { resource: 'messages/unread' } });
+      const response = await axios.get('https://home-run-assets.vercel.app/api/dataHandler', { params: { resource: 'messages/unread' } });
       console.log('Unread messages count:', response.data);
       setUnreadMessages(response.data.count);
     } catch (error) {
@@ -239,7 +239,7 @@ const Home = () => {
 
   const fetchTasks = async () => {
     try {
-      const response = await api.get('/dataHandler', { params: { resource: 'tasks' } });
+      const response = await axios.get('https://home-run-assets.vercel.app/api/dataHandler', { params: { resource: 'tasks' } });
       console.log('Tasks fetched:', response.data);
       setTasks(response.data);
     } catch (error) {
@@ -290,7 +290,7 @@ const Home = () => {
 
   const handleTaskToggle = async (taskId) => {
     try {
-      await api.put(`/dataHandler`, { resource: 'tasks', id: taskId, data: { completed: true } });
+      await axios.put('https://home-run-assets.vercel.app/api/dataHandler', { resource: 'tasks', id: taskId, data: { completed: true } });
       setTasks(tasks.filter(task => task.id !== taskId));
       setSnackbarMessage('המשימה הושלמה בהצלחה');
       setSnackbarSeverity('success');

@@ -14,12 +14,47 @@ export default async function handler(req, res) {
     try {
         switch (method) {
             case 'POST':
-                const newRecord = await base(resource).create(req.body);
-                console.log('Created new record:', newRecord);
-                return res.status(201).json(newRecord);
+                if (resource === 'tasks') {
+                    console.log('Creating new task');
+                    const { description, messageId, sender, originalMessage } = req.body;
+                    const newTask = await base('Tasks').create({
+                        Description: description,
+                        Status: 'To Do',
+                        'Related Message ID': messageId,
+                        Sender: sender,
+                        'Original Message': originalMessage,
+                        'Created At': new Date().toISOString()
+                    });
+                    console.log('Created new task:', newTask);
+                    return res.status(201).json({
+                        id: newTask.id,
+                        ...newTask.fields
+                    });
+                } else {
+                    const newRecord = await base(resource).create(req.body);
+                    console.log('Created new record:', newRecord);
+                    return res.status(201).json(newRecord);
+                }
 
             case 'GET':
-                if (resource === 'matchingProperties' && id) {
+                if (resource === 'tasks') {
+                    console.log('Fetching tasks');
+                    const tasks = await base('Tasks').select({
+                        maxRecords: 20,
+                        view: "Grid view",
+                        filterByFormula: "{Status} = 'To Do'"
+                    }).firstPage();
+                    const formattedTasks = tasks.map(task => ({
+                        id: task.id,
+                        description: task.fields.Description,
+                        status: task.fields.Status,
+                        dueDate: task.fields['Due Date'],
+                        priority: task.fields.Priority,
+                        sender: task.fields.Sender
+                    }));
+                    console.log('Fetched tasks:', formattedTasks.length);
+                    return res.status(200).json(formattedTasks);
+                } else if (resource === 'matchingProperties' && id) {
                     console.log('Fetching matching properties for customer:', id);
                     const customerRecord = await base('Customers').find(id);
                     if (!customerRecord) {
@@ -128,9 +163,18 @@ export default async function handler(req, res) {
                 if (!id) {
                     return res.status(400).json({ error: 'ID is required for PUT requests' });
                 }
-                console.log('Updating record:', id);
-                const updatedRecord = await base(resource).update(id, req.body);
-                return res.status(200).json(updatedRecord);
+                if (resource === 'tasks') {
+                    console.log('Updating task:', id);
+                    const updatedTask = await base('Tasks').update(id, req.body);
+                    return res.status(200).json({
+                        id: updatedTask.id,
+                        ...updatedTask.fields
+                    });
+                } else {
+                    console.log('Updating record:', id);
+                    const updatedRecord = await base(resource).update(id, req.body);
+                    return res.status(200).json(updatedRecord);
+                }
 
             case 'DELETE':
                 if (!id) {

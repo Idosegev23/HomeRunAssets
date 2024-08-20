@@ -1,499 +1,85 @@
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
-import { useLocation, useNavigate } from 'react-router-dom';
-import { Container, Grid, Typography, Snackbar, Dialog, DialogTitle, DialogContent, DialogActions, Button, AppBar, Toolbar, CircularProgress, Paper, List, ListItem, ListItemText, Divider } from '@mui/material';
-import MuiAlert from '@mui/material/Alert';
-import { CacheProvider } from '@emotion/react';
-import createCache from '@emotion/cache';
-import { prefixer } from 'stylis';
-import rtlPlugin from 'stylis-plugin-rtl';
-import MessageEditor from './MessageEditor';
-import './SendMessages.css';
 import axios from 'axios';
-import { isHoliday, getHolidayName } from '../utils/israeliHolidays';
 
-// Create RTL cache
-const cacheRtl = createCache({
-  key: 'muirtl',
-  stylisPlugins: [prefixer, rtlPlugin],
-});
+const GREENAPI_ID = process.env.GREENAPI_ID;
+const GREENAPI_APITOKENINSTANCE = process.env.GREENAPI_APITOKENINSTANCE;
+const GREENAPI_BASE_URL = `https://api.greenapi.com/waInstance${GREENAPI_ID}`;
 
-const Alert = React.forwardRef(function Alert(props, ref) {
-  return <MuiAlert elevation={6} ref={ref} variant="filled" {...props} />;
-});
-
-const DAILY_MESSAGE_LIMIT = 200;
-const WAIT_TIME = 20 * 1000; // 20 seconds
-
-const SendMessages = () => {
-  const location = useLocation();
-  const navigate = useNavigate();
-  const { selectedCustomer, selectedProperties, eligibleCustomers } = location.state || {};
-
-  const [customMessage, setCustomMessage] = useState('');
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState(null);
-  const [openSnackbar, setOpenSnackbar] = useState(false);
-  const [progress, setProgress] = useState(0);
-  const [backgroundSending, setBackgroundSending] = useState(false);
-  const [openConfirmDialog, setOpenConfirmDialog] = useState(false);
-  const [openNavigationDialog, setOpenNavigationDialog] = useState(false);
-  const [countdown, setCountdown] = useState(0);
-  const [openCountdownDialog, setOpenCountdownDialog] = useState(false);
-  const [dataReady, setDataReady] = useState(false);
-  const [sendQueue, setSendQueue] = useState([]);
-  const [dailyMessageCount, setDailyMessageCount] = useState(() => {
-    const storedCount = localStorage.getItem('dailyMessageCount');
-    return storedCount ? parseInt(storedCount, 10) : 0;
-  });
-  const [totalMessages, setTotalMessages] = useState(() => {
-    const storedTotal = localStorage.getItem('totalMessages');
-    return storedTotal ? parseInt(storedTotal, 10) : 0;
-  });
-  const [overrideTimeRestriction, setOverrideTimeRestriction] = useState(false);
-  const [openTimeOverrideDialog, setOpenTimeOverrideDialog] = useState(false);
-
-  const cachedEligibleCustomers = useMemo(() => {
-    return selectedCustomer ? [selectedCustomer] : (eligibleCustomers || []);
-  }, [selectedCustomer, eligibleCustomers]);
-
-  const [selectedCustomers, setSelectedCustomers] = useState(() => 
-    cachedEligibleCustomers.map(customer => customer.id)
-  );
-
-  useEffect(() => {
-    localStorage.setItem('dailyMessageCount', dailyMessageCount.toString());
-  }, [dailyMessageCount]);
-
-  useEffect(() => {
-    localStorage.setItem('totalMessages', totalMessages.toString());
-  }, [totalMessages]);
-
-  useEffect(() => {
-    const now = new Date();
-    const midnight = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
-    const timeUntilMidnight = midnight.getTime() - now.getTime();
-
-    const resetMessageCount = () => {
-      setDailyMessageCount(0);
-      localStorage.setItem('dailyMessageCount', '0');
-    };
-
-    const timeoutId = setTimeout(resetMessageCount, timeUntilMidnight);
-
-    return () => clearTimeout(timeoutId);
-  }, []);
-
-  useEffect(() => {
-    if (!location.state) {
-      console.log("No state received in location");
-      setError("לא התקבלו נתונים. אנא חזור לדף הקודם ונסה שוב.");
-      return;
-    }
-
-    if (!selectedProperties || selectedProperties.length === 0) {
-      console.log("No properties selected");
-      setError("לא נבחרו נכסים. אנא חזור לדף הנכסים ובחר נכסים.");
-      return;
-    }
-
-    const customers = cachedEligibleCustomers;
-
-    if (customers.length === 0) {
-      console.log("No eligible customers found");
-      setError("לא נמצאו לקוחות מתאימים לנכסים אלו.");
-      return;
-    }
-
-    console.log(`Setting ${customers.length} selected customers`);
-    setSelectedCustomers(customers.map(customer => customer.id));
-    setDataReady(true);
-  }, [location.state, selectedProperties, cachedEligibleCustomers]);
-
-  const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
-
-  const replaceTokens = useCallback((message, customer, properties) => {
-    console.log("Replacing tokens in message");
-    let finalMessage = message;
-    properties.forEach((property, index) => {
-      const tokens = {
-        '{שם_פרטי}': customer.First_name,
-        '{שם_משפחה}': customer.Last_name,
-        '{תקציב}': customer.Budget,
-        '{אזור}': customer.Area,
-        [`{מחיר_נכס_${index+1}}`]: property.price,
-        [`{עיר_נכס_${index+1}}`]: property.city,
-        [`{רחוב_נכס_${index+1}}`]: property.street,
-        [`{מספר_חדרים_${index+1}}`]: property.rooms,
-        [`{מר_${index+1}}`]: property.square_meters,
-        [`{קומה_${index+1}}`]: property.floor
-      };
-
-      Object.entries(tokens).forEach(([token, value]) => {
-        finalMessage = finalMessage.replace(new RegExp(token, 'g'), value);
-      });
-    });
-    console.log("Tokens replaced in message");
-    return finalMessage;
-  }, []);
-
-  const isWithinAllowedTime = useCallback(() => {
-    if (overrideTimeRestriction) {
-      console.log("Time restriction override is active");
-      return true;
-    }
-
+const isWithinAllowedTime = () => {
     const now = new Date();
     const hours = now.getHours();
     const day = now.getDay();
-    const holiday = isHoliday(now);
 
-    console.log(`Checking allowed time: Hour ${hours}, Day ${day}, Holiday: ${holiday}`);
+    console.log(`Current time: ${now}, Hour: ${hours}, Day: ${day}`);
 
-    if (holiday || day === 6 || (day === 5 && hours >= 14) || hours >= 20 || hours < 8) {
-      console.log("Outside allowed time");
-      return false;
+    if (day === 6) {
+        console.log("It's Saturday, messages not allowed");
+        return false;
     }
+
+    if (day === 5 && hours >= 14) {
+        console.log("It's Friday after 14:00, messages not allowed");
+        return false;
+    }
+
+    if (hours < 8 || hours >= 20) {
+        console.log("Outside allowed hours (8:00-20:00)");
+        return false;
+    }
+
     console.log("Within allowed time");
     return true;
-  }, [overrideTimeRestriction]);
-
-  const sendMessage = useCallback(async (customer, personalizedMessage) => {
-    const retries = 3;
-    for (let i = 0; i < retries; i++) {
-      try {
-        const cellString = typeof customer.Cell === 'string' ? customer.Cell : customer.Cell.toString();
-        const chatId = `972${cellString.replace(/\D/g, '').slice(1)}@c.us`;
-        console.log(`Attempting to send message to ${chatId}, attempt ${i + 1}`);
-        console.log("API Base URL:", process.env.NEXT_PUBLIC_API_BASE_URL);
-        const response = await axios.post(`${process.env.NEXT_PUBLIC_API_BASE_URL}/api/sendMessage`, {
-          phoneNumber: chatId,
-          text: personalizedMessage
-        }, {
-          headers: {
-            'Content-Type': 'application/json',
-          }
-        });
-
-        console.log(`Response from server:`, response);
-
-        if (response.status === 200) {
-          console.log(`Message sent successfully to ${chatId}`);
-          return response.data;
-        } else {
-          console.error(`Unexpected response status: ${response.status}`);
-        }
-      } catch (error) {
-        console.error(`Error sending message to ${customer.Cell}:`, error.response?.data || error.message);
-        if (i === retries - 1) throw error;
-        console.log(`Retrying in ${1000 * Math.pow(2, i)}ms...`);
-        await delay(1000 * Math.pow(2, i)); // Exponential backoff
-      }
-    }
-    throw new Error(`Failed to send message after ${retries} attempts`);
-  }, []);
-
-  const handleSendMessages = useCallback(async () => {
-    console.log("Starting handleSendMessages");
-    setOpenConfirmDialog(false);
-    setProgress(0);
-    setBackgroundSending(true);
-
-    const totalCustomers = selectedCustomers.length;
-    console.log(`Total customers to process: ${totalCustomers}`);
-
-    if (dailyMessageCount >= DAILY_MESSAGE_LIMIT) {
-      console.log("Daily message limit reached");
-      setError("כמות ההודעות המקסימלית להיום הושגה. ניתן לשלוח הודעות נוספות מחר.");
-      setOpenSnackbar(true);
-      setBackgroundSending(false);
-      return;
-    }
-
-    const sendMessagesInBackground = async () => {
-      console.log("Starting sendMessagesInBackground");
-      setLoading(true);
-      console.log("Is within allowed time:", isWithinAllowedTime());
-      for (let i = 0; i < totalCustomers; i++) {
-        console.log(`Processing customer ${i + 1} of ${totalCustomers}`);
-        if (!isWithinAllowedTime()) {
-          console.log("Outside allowed time for sending messages");
-          const holidayName = getHolidayName(new Date());
-          setOpenTimeOverrideDialog(true);
-          break;
-        }
-
-        const customerId = selectedCustomers[i];
-        const customer = cachedEligibleCustomers.find(c => c.id === customerId);
-        console.log(`Preparing message for customer: ${customer.id}`);
-        const personalizedMessage = replaceTokens(customMessage, customer, selectedProperties);
-
-        try {
-          const result = await sendMessage(customer, personalizedMessage);
-          console.log(`Message sent successfully to ${customer.Cell}. Result:`, result);
-
-          setProgress(((i + 1) / totalCustomers) * 100);
-          setDailyMessageCount(prevCount => {
-            const newCount = prevCount + 1;
-            console.log(`Updated daily message count: ${newCount}`);
-            localStorage.setItem('dailyMessageCount', newCount.toString());
-            return newCount;
-          });
-          setTotalMessages(prev => {
-            const newTotal = prev + 1;
-            console.log(`Updated total messages: ${newTotal}`);
-            localStorage.setItem('totalMessages', newTotal.toString());
-            return newTotal;
-          });
-
-          if (i < totalCustomers - 1) {
-            console.log(`Starting countdown for next message`);
-            setCountdown(20);
-            setOpenCountdownDialog(true);
-            for (let k = 20; k > 0; k--) {
-              await delay(1000);
-              setCountdown(k - 1);
-            }
-            setOpenCountdownDialog(false);
-          }
-        } catch (err) {
-          console.error(`Error sending message to ${customer.Cell}:`, err);
-          setError(`שגיאה בשליחת ההודעה: ${err.message}`);
-          setOpenSnackbar(true);
-        }
-      }
-
-      console.log("Finished processing all customers");
-      setOpenSnackbar(true);
-      setLoading(false);
-      setProgress(0);
-      setBackgroundSending(false);
-      setOpenNavigationDialog(true);
-    };
-
-    console.log("Adding sendMessagesInBackground to queue");
-    setSendQueue(prevQueue => [...prevQueue, sendMessagesInBackground]);
-  }, [selectedCustomers, dailyMessageCount, isWithinAllowedTime, cachedEligibleCustomers, customMessage, selectedProperties, sendMessage, replaceTokens]);
-
-  const handleProcessQueue = useCallback(async () => {
-    console.log("Starting handleProcessQueue");
-    console.log("Current queue length:", sendQueue.length);
-    while (sendQueue.length > 0) {
-      const sendTask = sendQueue.shift();
-      console.log("Executing next task in queue");
-      await sendTask();
-    }
-    console.log("Finished processing queue");
-    setLoading(false);
-  }, [sendQueue]);
-
-  useEffect(() => {
-    console.log("useEffect for queue processing triggered");
-    console.log("Current queue length:", sendQueue.length);
-    console.log("Current loading state:", loading);
-    if (sendQueue.length > 0 && !loading) {
-      console.log("Conditions met, calling handleProcessQueue");
-      handleProcessQueue();
-    } else {
-      console.log("Conditions not met for processing queue");
-      if (loading) {
-        console.log("Queue processing is already in progress");
-      }
-      if (sendQueue.length === 0) {
-        console.log("Queue is empty");
-      }
-    }
-  }, [sendQueue, loading, handleProcessQueue]);
-
-  const handleCloseSnackbar = () => setOpenSnackbar(false);
-
-  const handleNavigate = useCallback((destination) => {
-    setOpenNavigationDialog(false);
-    navigate(destination);
-  }, [navigate]);
-
-  const handleCancelSending = useCallback(() => {
-    console.log("Cancelling message sending");
-    setLoading(false);
-    setBackgroundSending(false);
-    setProgress(0);
-    setOpenCountdownDialog(false);
-    setSendQueue([]);
-  }, []);
-
-  const handleTimeOverride = useCallback((override) => {
-    setOverrideTimeRestriction(override);
-    setOpenTimeOverrideDialog(false);
-    if (override) {
-      console.log("Time restriction override activated");
-      handleSendMessages();
-    } else {
-      console.log("Message sending cancelled due to time restrictions");
-      handleCancelSending();
-    }
-  }, [handleSendMessages, handleCancelSending]);
-
-  if (error) {
-    return (
-      <Container>
-        <Typography color="error" variant="h6" align="center">
-          {error}
-        </Typography>
-        <Button onClick={() => navigate('/properties')} variant="contained" color="primary" style={{ marginTop: '20px' }}>
-          חזור לדף הנכסים
-        </Button>
-      </Container>
-    );
-  }
-
-  if (!dataReady) {
-    return (
-      <Container style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh' }}>
-        <CircularProgress />
-      </Container>
-    );
-  }
-
-  return (
-<CacheProvider value={cacheRtl}>
-      <Container maxWidth="lg" className="send-messages-container">
-        <AppBar position="static" color="primary">
-          <Toolbar>
-            <Typography variant="h6" component="div" sx={{ flexGrow: 1 }}>
-              שליחת הודעות
-            </Typography>
-          </Toolbar>
-        </AppBar>
-
-        <Paper elevation={3} sx={{ mt: 3, p: 3 }}>
-          <Grid container spacing={3}>
-            <Grid item xs={12}>
-              <Typography variant="h4" align="center" gutterBottom>
-                שליחת הודעות ללקוחות
-              </Typography>
-              <Typography variant="h6" align="center" gutterBottom>
-                עבור נכסים נבחרים
-              </Typography>
-              <Typography variant="subtitle1" align="center" gutterBottom>
-                סה"כ הודעות שנשלחו היום: {totalMessages} / {DAILY_MESSAGE_LIMIT}
-              </Typography>
-            </Grid>
-          </Grid>
-        
-          <Grid container spacing={3} sx={{ mt: 2 }}>
-            <Grid item xs={12} md={6}>
-              <Paper elevation={2} sx={{ p: 2 }}>
-                <Typography variant="h6" gutterBottom>
-                  לקוחות נבחרים
-                </Typography>
-                {cachedEligibleCustomers.length > 0 ? (
-                  <List>
-                    {cachedEligibleCustomers.map((customer) => (
-                      <React.Fragment key={customer.id}>
-                        <ListItem>
-                          <ListItemText 
-                            primary={`${customer.First_name} ${customer.Last_name}`}
-                            secondary={customer.Cell}
-                          />
-                        </ListItem>
-                        <Divider />
-                      </React.Fragment>
-                    ))}
-                  </List>
-                ) : (
-                  <Typography>אין לקוחות זמינים</Typography>
-                )}
-              </Paper>
-            </Grid>
-            <Grid item xs={12} md={6}>
-              <Paper elevation={2} sx={{ p: 2 }}>
-                <MessageEditor 
-                  customMessage={customMessage}
-                  setCustomMessage={setCustomMessage}
-                  loading={loading}
-                  backgroundSending={backgroundSending}
-                  progress={progress}
-                  selectedCustomers={selectedCustomers}
-                  handleSendMessages={() => {
-                    console.log("Send button clicked");
-                    setOpenConfirmDialog(true);
-                  }}
-                  handleCancelSending={handleCancelSending}
-                />
-              </Paper>
-            </Grid>
-          </Grid>
-        </Paper>
-
-        <Snackbar open={openSnackbar} autoHideDuration={6000} onClose={handleCloseSnackbar}>
-          <Alert onClose={handleCloseSnackbar} severity={error ? "error" : "success"}>
-            {error || "ההודעות נשלחו בהצלחה!"}
-          </Alert>
-        </Snackbar>
-        
-        <Dialog open={openConfirmDialog} onClose={() => {
-          console.log("Closing confirm dialog");
-          setOpenConfirmDialog(false);
-        }}>
-          <DialogTitle>אישור שליחת הודעות</DialogTitle>
-          <DialogContent>
-            <Typography>
-              האם אתה בטוח שברצונך לשלוח הודעות ל-{selectedCustomers.length} לקוחות עבור {selectedProperties.length} נכסים נבחרים?
-            </Typography>
-          </DialogContent>
-          <DialogActions>
-            <Button onClick={() => {
-              console.log("Cancelling send operation");
-              setOpenConfirmDialog(false);
-            }}>
-              ביטול
-            </Button>
-            <Button onClick={() => {
-              console.log("Confirming send operation");
-              handleSendMessages();
-            }} color="primary">
-              אישור
-            </Button>
-          </DialogActions>
-        </Dialog>
-        
-        <Dialog open={openNavigationDialog} onClose={() => setOpenNavigationDialog(false)}>
-          <DialogTitle>לאן תרצה לנווט?</DialogTitle>
-          <DialogContent>
-            <Button onClick={() => handleNavigate('/properties')}>דף נכסים</Button>
-            <Button onClick={() => handleNavigate('/customers')}>דף לקוחות</Button>
-            <Button onClick={() => handleNavigate('/')}>דף הבית</Button>
-            <Button onClick={() => handleNavigate('/chat')}>דף צ'אט</Button>
-          </DialogContent>
-        </Dialog>
-
-        <Dialog open={openCountdownDialog}>
-          <DialogTitle>המתנה לשליחת ההודעה הבאה</DialogTitle>
-          <DialogContent>
-            <Typography>
-              עוד {countdown} שניות לשליחה הבאה כדי שלא ייחסם הנייד
-            </Typography>
-          </DialogContent>
-        </Dialog>
-
-        <Dialog open={openTimeOverrideDialog} onClose={() => handleTimeOverride(false)}>
-          <DialogTitle>שליחת הודעות מחוץ לשעות המותרות</DialogTitle>
-          <DialogContent>
-            <Typography>
-              השעה הנוכחית היא מחוץ לשעות המותרות לשליחת הודעות. האם ברצונך להמשיך בכל זאת?
-            </Typography>
-          </DialogContent>
-          <DialogActions>
-            <Button onClick={() => handleTimeOverride(false)} color="primary">
-              ביטול
-            </Button>
-            <Button onClick={() => handleTimeOverride(true)} color="secondary">
-              המשך שליחה
-            </Button>
-          </DialogActions>
-        </Dialog>
-      </Container>
-    </CacheProvider>
-  );
 };
 
-export default SendMessages;
+export default async function handler(req, res) {
+    console.log("Received request to send message");
+    console.log("Request body:", req.body);
+
+    const { phoneNumber, text } = req.body;
+
+    if (!phoneNumber || !text) {
+        console.log("Missing phone number or text");
+        return res.status(400).json({ error: 'Phone number and text are required' });
+    }
+
+    if (!isWithinAllowedTime()) {
+        console.log("Attempt to send message outside allowed hours");
+        return res.status(400).json({ error: 'Messages cannot be sent outside allowed hours.' });
+    }
+
+    try {
+        const chatId = `${phoneNumber.replace(/\D/g, '').replace(/^0/, '972')}@c.us`;
+        const apiUrl = `${GREENAPI_BASE_URL}/sendMessage/${GREENAPI_APITOKENINSTANCE}`;
+
+        console.log("Prepared API URL:", apiUrl);
+        console.log("Prepared Chat ID:", chatId);
+
+        console.log("Sending request to GreenAPI");
+        const response = await axios.post(apiUrl, {
+            chatId,
+            message: text,
+        });
+
+        console.log("Response from GreenAPI:", response.data);
+
+        res.status(200).json({ id: response.data.idMessage, status: 'Message sent successfully' });
+    } catch (error) {
+        console.error("Error sending message:", error);
+        console.error("Error response:", error.response?.data);
+
+        if (error.response) {
+            if (error.response.status === 429) {
+                console.log("Rate limit exceeded");
+                res.status(429).json({ error: 'Rate limit exceeded. Please try again later.' });
+            } else {
+                console.log(`Received error status ${error.response.status} from GreenAPI`);
+                res.status(error.response.status).json({ error: error.response.data });
+            }
+        } else if (error.request) {
+            console.log("No response received from GreenAPI");
+            res.status(500).json({ error: 'No response received from messaging service' });
+        } else {
+            console.log("Error setting up the request");
+            res.status(500).json({ error: 'Error setting up the request' });
+        }
+    }
+}

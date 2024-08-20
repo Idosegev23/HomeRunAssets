@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { Container, Grid, Typography, Snackbar, Dialog, DialogTitle, DialogContent, DialogActions, Button, AppBar, Toolbar, CircularProgress } from '@mui/material';
+import { Container, Grid, Typography, Snackbar, Dialog, DialogTitle, DialogContent, DialogActions, Button, AppBar, Toolbar, CircularProgress, Paper, List, ListItem, ListItemText, Divider } from '@mui/material';
 import MuiAlert from '@mui/material/Alert';
 import { CacheProvider } from '@emotion/react';
 import createCache from '@emotion/cache';
@@ -157,10 +157,12 @@ const SendMessages = () => {
     return true;
   }, [overrideTimeRestriction]);
 
-  const sendMessage = useCallback(async (chatId, personalizedMessage) => {
+  const sendMessage = useCallback(async (customer, personalizedMessage) => {
     const retries = 3;
     for (let i = 0; i < retries; i++) {
       try {
+        const cellString = typeof customer.Cell === 'string' ? customer.Cell : customer.Cell.toString();
+        const chatId = `972${cellString.replace(/\D/g, '').slice(1)}@c.us`;
         console.log(`Attempting to send message to ${chatId}, attempt ${i + 1}`);
         console.log("API Base URL:", process.env.NEXT_PUBLIC_API_BASE_URL);
         const response = await axios.post(`${process.env.NEXT_PUBLIC_API_BASE_URL}/api/sendMessage`, {
@@ -181,7 +183,7 @@ const SendMessages = () => {
           console.error(`Unexpected response status: ${response.status}`);
         }
       } catch (error) {
-        console.error(`Error sending message to ${chatId}:`, error.response?.data || error.message);
+        console.error(`Error sending message to ${customer.Cell}:`, error.response?.data || error.message);
         if (i === retries - 1) throw error;
         console.log(`Retrying in ${1000 * Math.pow(2, i)}ms...`);
         await delay(1000 * Math.pow(2, i)); // Exponential backoff
@@ -225,12 +227,9 @@ const SendMessages = () => {
         console.log(`Preparing message for customer: ${customer.id}`);
         const personalizedMessage = replaceTokens(customMessage, customer, selectedProperties);
 
-        const chatId = `972${customer.Cell.replace(/\D/g, '').slice(1)}@c.us`;
-        console.log(`Attempting to send message to chatId: ${chatId}`);
-
         try {
-          const result = await sendMessage(chatId, personalizedMessage);
-          console.log(`Message sent successfully to ${chatId}. Result:`, result);
+          const result = await sendMessage(customer, personalizedMessage);
+          console.log(`Message sent successfully to ${customer.Cell}. Result:`, result);
 
           setProgress(((i + 1) / totalCustomers) * 100);
           setDailyMessageCount(prevCount => {
@@ -257,7 +256,7 @@ const SendMessages = () => {
             setOpenCountdownDialog(false);
           }
         } catch (err) {
-          console.error(`Error sending message to ${chatId}:`, err);
+          console.error(`Error sending message to ${customer.Cell}:`, err);
           setError(`שגיאה בשליחת ההודעה: ${err.message}`);
           setOpenSnackbar(true);
         }
@@ -355,9 +354,9 @@ const SendMessages = () => {
   }
 
   return (
-    <CacheProvider value={cacheRtl}>
-      <Container className="send-messages-container">
-        <AppBar position="static">
+<CacheProvider value={cacheRtl}>
+      <Container maxWidth="lg" className="send-messages-container">
+        <AppBar position="static" color="primary">
           <Toolbar>
             <Typography variant="h6" component="div" sx={{ flexGrow: 1 }}>
               שליחת הודעות
@@ -365,54 +364,66 @@ const SendMessages = () => {
           </Toolbar>
         </AppBar>
 
-        <Grid container spacing={3} className="header">
-          <Grid item xs={12}>
-            <Typography variant="h4" align="center" gutterBottom>
-              שליחת הודעות ללקוחות
-            </Typography>
-            <Typography variant="h6" align="center" gutterBottom>
-              עבור נכסים נבחרים
-            </Typography>
-            <Typography variant="h6" align="center" gutterBottom>
-              סה"כ הודעות שנשלחו היום: {totalMessages} / {DAILY_MESSAGE_LIMIT}
-            </Typography>
+        <Paper elevation={3} sx={{ mt: 3, p: 3 }}>
+          <Grid container spacing={3}>
+            <Grid item xs={12}>
+              <Typography variant="h4" align="center" gutterBottom>
+                שליחת הודעות ללקוחות
+              </Typography>
+              <Typography variant="h6" align="center" gutterBottom>
+                עבור נכסים נבחרים
+              </Typography>
+              <Typography variant="subtitle1" align="center" gutterBottom>
+                סה"כ הודעות שנשלחו היום: {totalMessages} / {DAILY_MESSAGE_LIMIT}
+              </Typography>
+            </Grid>
           </Grid>
-        </Grid>
         
-        <Grid container spacing={3}>
-          <Grid item xs={12} md={6}>
-            <Typography variant="h6" gutterBottom>
-              לקוחות נבחרים
-            </Typography>
-            {cachedEligibleCustomers.length > 0 ? (
-              <ul>
-                {cachedEligibleCustomers.map((customer) => (
-                  <li key={customer.id}>
-                    {customer.First_name} {customer.Last_name} - {customer.Cell}
-                  </li>
-                ))}
-              </ul>
-            ) : (
-              <Typography>אין לקוחות זמינים</Typography>
-            )}
+          <Grid container spacing={3} sx={{ mt: 2 }}>
+            <Grid item xs={12} md={6}>
+              <Paper elevation={2} sx={{ p: 2 }}>
+                <Typography variant="h6" gutterBottom>
+                  לקוחות נבחרים
+                </Typography>
+                {cachedEligibleCustomers.length > 0 ? (
+                  <List>
+                    {cachedEligibleCustomers.map((customer) => (
+                      <React.Fragment key={customer.id}>
+                        <ListItem>
+                          <ListItemText 
+                            primary={`${customer.First_name} ${customer.Last_name}`}
+                            secondary={customer.Cell}
+                          />
+                        </ListItem>
+                        <Divider />
+                      </React.Fragment>
+                    ))}
+                  </List>
+                ) : (
+                  <Typography>אין לקוחות זמינים</Typography>
+                )}
+              </Paper>
+            </Grid>
+            <Grid item xs={12} md={6}>
+              <Paper elevation={2} sx={{ p: 2 }}>
+                <MessageEditor 
+                  customMessage={customMessage}
+                  setCustomMessage={setCustomMessage}
+                  loading={loading}
+                  backgroundSending={backgroundSending}
+                  progress={progress}
+                  selectedCustomers={selectedCustomers}
+                  handleSendMessages={() => {
+                    console.log("Send button clicked");
+                    setOpenConfirmDialog(true);
+                  }}
+                  handleCancelSending={handleCancelSending}
+                />
+              </Paper>
+            </Grid>
           </Grid>
-          <Grid item xs={12} md={6}>
-            <MessageEditor 
-              customMessage={customMessage}
-              setCustomMessage={setCustomMessage}
-              loading={loading}
-              backgroundSending={backgroundSending}
-              progress={progress}
-              selectedCustomers={selectedCustomers}
-              handleSendMessages={() => {
-                console.log("Send button clicked");
-                setOpenConfirmDialog(true);
-              }}
-              handleCancelSending={handleCancelSending}
-            />
-          </Grid>
-        </Grid>
-        
+        </Paper>
+
         <Snackbar open={openSnackbar} autoHideDuration={6000} onClose={handleCloseSnackbar}>
           <Alert onClose={handleCloseSnackbar} severity={error ? "error" : "success"}>
             {error || "ההודעות נשלחו בהצלחה!"}
