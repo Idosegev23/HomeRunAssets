@@ -1,8 +1,8 @@
 import React, { useState } from 'react';
-import { Dialog, DialogTitle, DialogContent, DialogActions, Button, Grid, Card, CardContent, Typography, Checkbox, FormControlLabel } from '@mui/material';
+import { Dialog, DialogTitle, DialogContent, DialogActions, Button, Grid, Card, CardContent, Typography, Checkbox, FormControlLabel, CircularProgress } from '@mui/material';
 import api from '../utils/api';
 
-const MatchingPropertiesDialog = ({ open, onClose, matchingProperties, selectedCustomer, onSendMessage }) => {
+const MatchingPropertiesDialog = ({ open, onClose, matchingProperties, selectedCustomer, onSendMessage, loading, error }) => {
   const [selectedProperties, setSelectedProperties] = useState([]);
 
   const handlePropertyToggle = (property) => {
@@ -35,7 +35,11 @@ const MatchingPropertiesDialog = ({ open, onClose, matchingProperties, selectedC
     <Dialog open={open} onClose={onClose} maxWidth="md" fullWidth>
       <DialogTitle>נכסים מתאימים</DialogTitle>
       <DialogContent>
-        {matchingProperties.length > 0 ? (
+        {loading ? (
+          <CircularProgress />
+        ) : error ? (
+          <Typography color="error">שגיאה בטעינת נכסים: {error}</Typography>
+        ) : matchingProperties.length > 0 ? (
           <Grid container spacing={2}>
             {matchingProperties.map(({ id, address, price, rooms, floor, square_meters, totalMatchPercentage, matchDetails }) => (
               <Grid item xs={12} sm={6} md={4} key={id}>
