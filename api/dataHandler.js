@@ -27,9 +27,24 @@ export default async function handler(req, res) {
                         return res.status(404).json({ error: 'Customer not found' });
                     }
 
-                    const customerBudget = parseFloat(customerRecord.fields.Budget?.replace(/[^\d.-]/g, '') || '0');
+                    if (customerRecord.fields.Budget === undefined) {
+                        console.log('Budget is undefined for customer:', id);
+                        return res.status(400).json({ error: 'Customer budget is not set' });
+                    }
+
+                    console.log('Customer Budget:', customerRecord.fields.Budget, typeof customerRecord.fields.Budget);
+
+                    const customerBudget = typeof customerRecord.fields.Budget === 'string' 
+                        ? parseFloat(customerRecord.fields.Budget.replace(/[^\d.-]/g, '') || '0')
+                        : customerRecord.fields.Budget || 0;
+                    
                     const customerRooms = customerRecord.fields.Rooms;
                     const customerCity = customerRecord.fields.City;
+
+                    if (!customerRooms || !customerCity) {
+                        console.log('Missing required fields for customer:', id);
+                        return res.status(400).json({ error: 'Customer is missing required fields (Rooms or City)' });
+                    }
 
                     console.log('Customer details:', { customerBudget, customerRooms, customerCity });
 
@@ -43,7 +58,11 @@ export default async function handler(req, res) {
                     console.log('Found properties:', properties.length);
 
                     const matchingProperties = properties.map(property => {
-                        const priceMatch = property.fields.price >= customerBudget * 0.9 && property.fields.price <= customerBudget * 1.1;
+                        const propertyPrice = typeof property.fields.price === 'string' 
+                            ? parseFloat(property.fields.price.replace(/[^\d.-]/g, '') || '0')
+                            : property.fields.price || 0;
+
+                        const priceMatch = propertyPrice >= customerBudget * 0.9 && propertyPrice <= customerBudget * 1.1;
                         const roomsMatch = property.fields.rooms == customerRooms; // Using == for type coercion
                         const cityMatch = property.fields.city === customerCity;
 
@@ -60,7 +79,7 @@ export default async function handler(req, res) {
                         return {
                             id: property.id,
                             address: `${property.fields.city}, ${property.fields.street}`,
-                            price: property.fields.price,
+                            price: propertyPrice,
                             rooms: property.fields.rooms,
                             square_meters: property.fields.square_meters,
                             floor: property.fields.floor,

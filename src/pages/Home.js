@@ -13,7 +13,12 @@ import {
   createTheme,
   responsiveFontSizes,
   Snackbar,
-  Alert
+  Alert,
+  List,
+  ListItem,
+  ListItemText,
+  ListItemIcon,
+  Checkbox
 } from '@mui/material';
 import { styled, useTheme } from '@mui/material/styles';
 import { Link as RouterLink } from 'react-router-dom';
@@ -23,7 +28,8 @@ import {
   People as PeopleIcon, 
   Message as MessageIcon,
   TrendingUp as TrendingUpIcon,
-  Lightbulb as LightbulbIcon
+  Lightbulb as LightbulbIcon,
+  Assignment as AssignmentIcon
 } from '@mui/icons-material';
 import { motion } from 'framer-motion';
 import { Line } from 'react-chartjs-2';
@@ -149,6 +155,18 @@ const QuoteTypography = styled(Typography)(({ theme }) => ({
   boxShadow: '0 4px 6px rgba(0,0,0,0.1)',
 }));
 
+const TaskCard = styled(Card)(({ theme }) => ({
+  height: '100%',
+  display: 'flex',
+  flexDirection: 'column',
+  overflow: 'hidden',
+}));
+
+const TaskCardContent = styled(CardContent)({
+  flexGrow: 1,
+  overflow: 'auto',
+});
+
 const Home = () => {
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
@@ -165,6 +183,8 @@ const Home = () => {
   const [snackbarOpen, setSnackbarOpen] = useState(false);
   const [snackbarMessage, setSnackbarMessage] = useState('');
   const [snackbarSeverity, setSnackbarSeverity] = useState('info');
+  const [tasks, setTasks] = useState([]);
+  const [loadingTasks, setLoadingTasks] = useState(true);
 
   const chartRef = useRef(null);
 
@@ -217,10 +237,26 @@ const Home = () => {
     }
   };
 
+  const fetchTasks = async () => {
+    try {
+      const response = await api.get('/dataHandler', { params: { resource: 'tasks' } });
+      console.log('Tasks fetched:', response.data);
+      setTasks(response.data);
+    } catch (error) {
+      console.error('Error fetching tasks:', error);
+      setSnackbarMessage('שגיאה בטעינת משימות');
+      setSnackbarSeverity('error');
+      setSnackbarOpen(true);
+    } finally {
+      setLoadingTasks(false);
+    }
+  };
+
   useEffect(() => {
     fetchProperties();
     fetchCustomers();
     fetchUnreadMessages();
+    fetchTasks();
 
     // Simulated growth data (replace with real data in production)
     setGrowthData({
@@ -251,6 +287,21 @@ const Home = () => {
     ];
     setQuoteOfDay(quotes[Math.floor(Math.random() * quotes.length)]);
   }, [theme.palette.primary.main, theme.palette.secondary.main]);
+
+  const handleTaskToggle = async (taskId) => {
+    try {
+      await api.put(`/dataHandler`, { resource: 'tasks', id: taskId, data: { completed: true } });
+      setTasks(tasks.filter(task => task.id !== taskId));
+      setSnackbarMessage('המשימה הושלמה בהצלחה');
+      setSnackbarSeverity('success');
+      setSnackbarOpen(true);
+    } catch (error) {
+      console.error('Error completing task:', error);
+      setSnackbarMessage('שגיאה בהשלמת המשימה');
+      setSnackbarSeverity('error');
+      setSnackbarOpen(true);
+    }
+  };
 
   const chartOptions = {
     responsive: true,
@@ -356,8 +407,42 @@ const Home = () => {
               </AnimatedCard>
             </Grid>
             
-            <Grid item xs={12}>
-              <StyledPaper sx={{ opacity: 0.5, position: 'relative' }}>
+            <Grid item xs={12} md={6}>
+              <TaskCard>
+                <CardContent>
+                  <Typography variant="h6" gutterBottom>
+                    <AssignmentIcon sx={{ verticalAlign: 'middle', marginRight: 1 }} />
+                    משימות
+                  </Typography>
+                  <TaskCardContent>
+                    {loadingTasks ? (
+                      <CircularProgress />
+                    ) : tasks.length > 0 ? (
+                      <List>
+                        {tasks.map((task) => (
+                          <ListItem key={task.id} dense button onClick={() => handleTaskToggle(task.id)}>
+                            <ListItemIcon>
+                              <Checkbox
+                                edge="start"
+                                checked={false}
+                                tabIndex={-1}
+                                disableRipple
+                              />
+                            </ListItemIcon>
+                            <ListItemText primary={task.description} />
+                          </ListItem>
+                        ))}
+                      </List>
+                    ) : (
+                      <Typography>אין משימות פעילות כרגע</Typography>
+                    )}
+                  </TaskCardContent>
+                </CardContent>
+              </TaskCard>
+            </Grid>
+
+            <Grid item xs={12} md={6}>
+              <StyledPaper sx={{ opacity: 0.5, position: 'relative', height: '100%' }}>
                 <ConstructionLabel>בבנייה</ConstructionLabel>
                 <Typography variant="h6" gutterBottom>
                   <TrendingUpIcon /> מגמת צמיחה
@@ -378,7 +463,7 @@ const Home = () => {
         
         <Snackbar open={snackbarOpen} autoHideDuration={6000} onClose={handleSnackbarClose}>
           <Alert onClose={handleSnackbarClose} severity={snackbarSeverity} sx={{ width: '100%' }}>
-          {snackbarMessage}
+            {snackbarMessage}
           </Alert>
         </Snackbar>
       </ThemeProvider>
