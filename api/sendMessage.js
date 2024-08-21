@@ -6,7 +6,7 @@ const GREENAPI_BASE_URL = `https://api.green-api.com/waInstance${GREENAPI_ID}`;
 
 const axiosInstance = axios.create({
   baseURL: GREENAPI_BASE_URL,
-  timeout: 10000,
+  timeout: 30000, // הגדלנו ל-30 שניות
   headers: {'Content-Type': 'application/json'}
 });
 
@@ -62,6 +62,27 @@ const checkMessageStatus = async (idMessage) => {
   }
 };
 
+const sendMessageWithRetry = async (chatId, message, maxRetries = 3) => {
+  for (let i = 0; i < maxRetries; i++) {
+    try {
+      console.log(`Attempt ${i + 1} to send message...`);
+      const response = await axiosInstance.post(`/sendMessage/${GREENAPI_APITOKENINSTANCE}`, { chatId, message }, {
+        headers: {
+          'Origin': 'https://home-run-assets.vercel.app',
+          'Access-Control-Request-Method': 'POST',
+          'Access-Control-Request-Headers': 'Content-Type'
+        }
+      });
+      console.log(`Message sent successfully on attempt ${i + 1}`);
+      return response.data;
+    } catch (error) {
+      console.error(`Attempt ${i + 1} failed:`, error.message);
+      if (i === maxRetries - 1) throw error;
+      await new Promise(resolve => setTimeout(resolve, 2000)); // Wait 2 seconds before retrying
+    }
+  }
+};
+
 module.exports = async function handler(req, res) {
     console.log("Axios version:", axios.VERSION);
     console.log("Received request to send message");
@@ -91,51 +112,35 @@ module.exports = async function handler(req, res) {
         const finalText = templateValues ? replaceTemplateValues(text, templateValues) : text;
 
         const chatId = `${formattedPhoneNumber}@c.us`;
-        const apiUrl = `/sendMessage/${GREENAPI_APITOKENINSTANCE}`;
 
         console.log("Preparing to send request to GreenAPI");
-        console.log("API URL:", apiUrl);
         console.log("ChatId:", chatId);
         console.log("Message:", finalText);
 
-        let retries = 0;
-        const maxRetries = 3;
+        try {
+            const response = await sendMessageWithRetry(chatId, finalText);
+            console.log("Raw response from GreenAPI:", response);
 
-        while (retries < maxRetries) {
-            try {
-                const response = await axiosInstance.post(apiUrl, { chatId, message: finalText }, {
-                    headers: {
-                        'Origin': 'https://home-run-assets.vercel.app',
-                        'Access-Control-Request-Method': 'POST',
-                        'Access-Control-Request-Headers': 'Content-Type'
-                    }
-                });
+            const idMessage = response.idMessage;
+            
+            // Check message status
+            const messageStatus = await checkMessageStatus(idMessage);
+            console.log("Message status:", messageStatus);
 
-                console.log("Raw response from GreenAPI:", response);
-                console.log("Response data from GreenAPI:", response.data);
-
-                const idMessage = response.data.idMessage;
-                
-                // Check message status
-                const messageStatus = await checkMessageStatus(idMessage);
-                console.log("Message status:", messageStatus);
-
-                if (messageStatus && messageStatus.status === 'sent') {
-                    return res.status(200).json({ id: idMessage, status: 'Message sent successfully' });
-                } else {
-                    console.log(`Message not sent successfully. Retrying... (Attempt ${retries + 1})`);
-                    retries++;
-                }
-            } catch (axiosError) {
-                console.error("Axios specific error:", axiosError);
-                retries++;
-                if (retries >= maxRetries) {
-                    throw axiosError;
-                }
+            if (messageStatus && messageStatus.status === 'sent') {
+                return res.status(200).json({ id: idMessage, status: 'Message sent successfully' });
+            } else {
+                return res.status(500).json({ error: 'Message was not confirmed as sent' });
             }
-        }
+        } catch (error) {
+            console.error("Error sending message:", error);
+            
+            if (error.response && error.response.status === 504) {
+                return res.status(504).json({ error: 'Gateway Timeout. The server did not respond in time.' });
+            }
 
-        return res.status(500).json({ error: 'Failed to send message after multiple attempts' });
+            return res.status(500).json({ error: 'Failed to send message', details: error.message });
+        }
 
     } catch (error) {
         console.error("Full error object:", error);
