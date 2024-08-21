@@ -6,7 +6,7 @@ const GREENAPI_BASE_URL = `https://api.green-api.com/waInstance${GREENAPI_ID}`;
 
 const axiosInstance = axios.create({
   baseURL: GREENAPI_BASE_URL,
-  timeout: 30000, // הגדלנו ל-30 שניות
+  timeout: 30000,
   headers: {'Content-Type': 'application/json'}
 });
 
@@ -45,7 +45,19 @@ const formatPhoneNumber = (phoneNumber) => {
         console.error("Phone number is not a string or number:", phoneNumber);
         throw new Error('Phone number must be a string or number');
     }
-    return formattedNumber.replace(/\D/g, '').replace(/^0/, '972');
+    
+    // Remove all non-digit characters
+    formattedNumber = formattedNumber.replace(/\D/g, '');
+    
+    // Remove leading '0' if exists
+    formattedNumber = formattedNumber.replace(/^0/, '');
+    
+    // Add '972' prefix if not already present
+    if (!formattedNumber.startsWith('972')) {
+        formattedNumber = '972' + formattedNumber;
+    }
+    
+    return formattedNumber;
 };
 
 const replaceTemplateValues = (text, values) => {
