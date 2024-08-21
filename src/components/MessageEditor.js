@@ -1,8 +1,8 @@
 import React, { useState } from 'react';
 import { Paper, Typography, FormControl, InputLabel, Select, MenuItem, TextField, Button, Box, CircularProgress, LinearProgress } from '@mui/material';
-import SendIcon from '@mui/icons-material/Send/index.js';
-import SaveIcon from '@mui/icons-material/Save/index.js';
-import CancelIcon from '@mui/icons-material/Cancel/index.js';
+import SendIcon from '@mui/icons-material/Send';
+import SaveIcon from '@mui/icons-material/Save';
+import CancelIcon from '@mui/icons-material/Cancel';
 import messageTemplates from './messageTemplates.json.js';
 const MessageEditor = ({ customMessage, setCustomMessage, loading, backgroundSending, progress, selectedCustomers, handleSendMessages, handleCancelSending }) => {
   const [selectedTemplate, setSelectedTemplate] = useState('');

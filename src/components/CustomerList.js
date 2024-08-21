@@ -19,9 +19,9 @@ import {
   Snackbar,
   Alert
 } from '@mui/material';
-import RefreshIcon from '@mui/icons-material/Refresh/index.js';
-import PersonAddIcon from '@mui/icons-material/PersonAdd/index.js';
-import FilterListIcon from '@mui/icons-material/FilterList/index.js';
+import RefreshIcon from '@mui/icons-material/Refresh';
+import PersonAddIcon from '@mui/icons-material/PersonAdd';
+import FilterListIcon from '@mui/icons-material/FilterList';
 import CustomerTable from './CustomerTable.js';import CustomerFilterDialog from './CustomerFilterDialog.js';import MatchingPropertiesDialog from './MatchingPropertiesDialog.js';import CustomerEditDialog from './CustomerEditDialog.js';import { useMatchingProperties } from '../hooks/useMatchingProperties.js';import './CustomerList.css';
 
 // יצירת קאש RTL

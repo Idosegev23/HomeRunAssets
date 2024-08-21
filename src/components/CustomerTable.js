@@ -1,9 +1,9 @@
 // CustomerTable.js
 import React from 'react';
 import { Table, TableBody, TableCell, TableContainer, TableHead, TableRow, IconButton, Tooltip } from '@mui/material';
-import EditIcon from '@mui/icons-material/Edit/index.js';
-import FilterListIcon from '@mui/icons-material/FilterList/index.js';
-import ChatIcon from '@mui/icons-material/Chat/index.js';
+import EditIcon from '@mui/icons-material/Edit';
+import FilterListIcon from '@mui/icons-material/FilterList';
+import ChatIcon from '@mui/icons-material/Chat';
 
 const CustomerTable = ({ customers, sortConfig, onSort, onEdit, onFindProperties, onSendMessage }) => {
   return (

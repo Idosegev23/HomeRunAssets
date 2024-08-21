@@ -6,12 +6,12 @@ import api from '../utils/api.js';import {
   Container, useTheme, useMediaQuery, ThemeProvider, createTheme,
   Switch, Fade, Box
 } from '@mui/material';
-import FilterListIcon from '@mui/icons-material/FilterList/index.js';
-import SendIcon from '@mui/icons-material/Send/index.js';
-import RefreshIcon from '@mui/icons-material/Refresh/index.js';
-import ViewModuleIcon from '@mui/icons-material/ViewModule/index.js';
-import ViewListIcon from '@mui/icons-material/ViewList/index.js';
-import EditIcon from '@mui/icons-material/Edit/index.js';
+import FilterListIcon from '@mui/icons-material/FilterList';
+import SendIcon from '@mui/icons-material/Send';
+import RefreshIcon from '@mui/icons-material/Refresh';
+import ViewModuleIcon from '@mui/icons-material/ViewModule';
+import ViewListIcon from '@mui/icons-material/ViewList';
+import EditIcon from '@mui/icons-material/Edit';
 import rtlPlugin from 'stylis-plugin-rtl';
 import { CacheProvider } from '@emotion/react';
 import createCache from '@emotion/cache';

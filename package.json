@@ -8,11 +8,12 @@
   },
   "scripts": {
     "start": "react-scripts start",
-    "build": "CI=false react-scripts build",
+    "build": "GENERATE_SOURCEMAP=false react-scripts build",
     "test": "react-scripts test",
     "eject": "react-scripts eject",
     "dev": "concurrently \"npm start\" \"cd server && npm run dev\"",
-"vercel-build": "npm install && npm run build"
+    "vercel-build": "npm install && npm run build",
+    "postinstall": "npm dedupe"
   },
   "dependencies": {
     "@emotion/react": "^11.13.0",
@@ -36,10 +37,10 @@
     "multer": "^1.4.5-lts.1",
     "os-browserify": "^0.3.0",
     "path-browserify": "^1.0.1",
-    "react": "^18.3.1",
+    "react": "^18.2.0",
     "react-chartjs-2": "^5.2.0",
     "react-countdown": "^2.3.5",
-    "react-dom": "^18.3.1",
+    "react-dom": "^18.2.0",
     "react-router-dom": "^6.25.1",
     "react-scripts": "5.0.1",
     "react-virtualized-auto-sizer": "^1.0.24",
@@ -72,6 +73,13 @@
   },
   "resolutions": {
     "react": "^18.2.0",
-    "react-dom": "^18.2.0"
+    "react-dom": "^18.2.0",
+    "@mui/material": "^5.16.7",
+    "@mui/icons-material": "^5.14.0"
+  },
+  "babel": {
+    "presets": [
+      "react-app"
+    ]
   }
 }
