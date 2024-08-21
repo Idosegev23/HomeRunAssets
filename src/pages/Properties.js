@@ -3,7 +3,7 @@ import {
   Container, Typography, Table, TableBody, TableCell, TableHead, TableRow, 
   CircularProgress, Snackbar, Paper, TableContainer, TablePagination, TableSortLabel
 } from '@mui/material';
- import { styled } from '@mui/material/styles';
+ import { styled } from '@mui/material/styles/index.js';
 import MuiAlert from '@mui/material/Alert';
 import api from '../utils/api.js';
 const Alert = React.forwardRef(function Alert(props, ref) {
