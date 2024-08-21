@@ -36,9 +36,19 @@ const isWithinAllowedTime = () => {
     return true;
 };
 
+const formatPhoneNumber = (phoneNumber) => {
+    console.log("Formatting phone number:", phoneNumber);
+    if (typeof phoneNumber !== 'string') {
+        console.error("Phone number is not a string:", phoneNumber);
+        throw new Error('Phone number must be a string');
+    }
+    return phoneNumber.replace(/\D/g, '').replace(/^0/, '972');
+};
+
 module.exports = async function handler(req, res) {
     console.log("Axios version:", axios.VERSION);
     console.log("Received request to send message");
+    console.log("Request body:", req.body);
 
     try {
         const { phoneNumber, text } = req.body;
@@ -53,7 +63,15 @@ module.exports = async function handler(req, res) {
             return res.status(400).json({ error: 'Messages cannot be sent outside allowed hours.' });
         }
 
-        const chatId = `${phoneNumber.replace(/\D/g, '').replace(/^0/, '972')}@c.us`;
+        let formattedPhoneNumber;
+        try {
+            formattedPhoneNumber = formatPhoneNumber(phoneNumber);
+        } catch (error) {
+            console.error("Error formatting phone number:", error);
+            return res.status(400).json({ error: 'Invalid phone number format' });
+        }
+
+        const chatId = `${formattedPhoneNumber}@c.us`;
         const apiUrl = `/sendMessage/${GREENAPI_APITOKENINSTANCE}`;
 
         console.log("Preparing to send request to GreenAPI");
@@ -63,7 +81,7 @@ module.exports = async function handler(req, res) {
         try {
             const response = await axiosInstance.post(apiUrl, { chatId, message: text }, {
                 headers: {
-                    'Origin': 'https://home-run-assets.vercel.app',
+                    'Origin': 'https://your-domain.com',
                     'Access-Control-Request-Method': 'POST',
                     'Access-Control-Request-Headers': 'Content-Type'
                 }
