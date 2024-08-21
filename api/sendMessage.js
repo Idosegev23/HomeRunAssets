@@ -46,13 +46,9 @@ const formatPhoneNumber = (phoneNumber) => {
         throw new Error('Phone number must be a string or number');
     }
     
-    // Remove all non-digit characters
     formattedNumber = formattedNumber.replace(/\D/g, '');
-    
-    // Remove leading '0' if exists
     formattedNumber = formattedNumber.replace(/^0/, '');
     
-    // Add '972' prefix if not already present
     if (!formattedNumber.startsWith('972')) {
         formattedNumber = '972' + formattedNumber;
     }
@@ -60,13 +56,14 @@ const formatPhoneNumber = (phoneNumber) => {
     return formattedNumber;
 };
 
-const replaceTemplateValues = (text, values) => {
+const replaceTemplateValues = (text, values = {}) => {
     return text.replace(/{(\w+)}/g, (match, key) => values[key] || match);
 };
 
 const checkMessageStatus = async (idMessage) => {
   try {
     const response = await axiosInstance.get(`/messageStatus/${GREENAPI_APITOKENINSTANCE}/${idMessage}`);
+    console.log("Full message status response:", response.data);
     return response.data;
   } catch (error) {
     console.error("Error checking message status:", error);
@@ -90,7 +87,7 @@ const sendMessageWithRetry = async (chatId, message, maxRetries = 3) => {
     } catch (error) {
       console.error(`Attempt ${i + 1} failed:`, error.message);
       if (i === maxRetries - 1) throw error;
-      await new Promise(resolve => setTimeout(resolve, 2000)); // Wait 2 seconds before retrying
+      await new Promise(resolve => setTimeout(resolve, 2000));
     }
   }
 };
@@ -121,7 +118,7 @@ module.exports = async function handler(req, res) {
             return res.status(400).json({ error: 'Invalid phone number format' });
         }
 
-        const finalText = templateValues ? replaceTemplateValues(text, templateValues) : text;
+        const finalText = replaceTemplateValues(text, templateValues || {});
 
         const chatId = `${formattedPhoneNumber}@c.us`;
 
@@ -135,14 +132,13 @@ module.exports = async function handler(req, res) {
 
             const idMessage = response.idMessage;
             
-            // Check message status
             const messageStatus = await checkMessageStatus(idMessage);
             console.log("Message status:", messageStatus);
 
-            if (messageStatus && messageStatus.status === 'sent') {
-                return res.status(200).json({ id: idMessage, status: 'Message sent successfully' });
+            if (messageStatus) {
+                return res.status(200).json({ id: idMessage, status: 'Message sent successfully', messageStatus });
             } else {
-                return res.status(500).json({ error: 'Message was not confirmed as sent' });
+                return res.status(500).json({ error: 'Could not confirm message status' });
             }
         } catch (error) {
             console.error("Error sending message:", error);
