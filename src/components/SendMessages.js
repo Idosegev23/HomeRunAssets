@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { Container, Grid, Typography, Snackbar, Dialog, DialogTitle, DialogContent, DialogActions, Button, AppBar, Toolbar, CircularProgress, Paper, List, ListItem, ListItemText, Divider, Checkbox, FormControlLabel } from '@mui/material';
-import MuiAlert from '@mui/material/Alert';
+import { Container, Grid, Typography, Snackbar, Dialog, DialogTitle, DialogContent, DialogActions, Button, AppBar, Toolbar, CircularProgress, Paper, List, ListItem, Divider, Checkbox, FormControlLabel } from '@mui/material';
+import MuiAlert from '@mui/material/Alert';  // ודא שזה מיובא
+
 import { CacheProvider } from '@emotion/react';
 import createCache from '@emotion/cache';
 import { prefixer } from 'stylis';
@@ -14,6 +15,10 @@ import { isHoliday } from '../utils/israeliHolidays.js';
 const cacheRtl = createCache({
   key: 'muirtl',
   stylisPlugins: [prefixer, rtlPlugin],
+});
+
+const Alert = React.forwardRef(function Alert(props, ref) {
+  return <MuiAlert elevation={6} ref={ref} variant="filled" {...props} />;
 });
 
 const DAILY_MESSAGE_LIMIT = 200;
@@ -312,7 +317,7 @@ const SendMessages = () => {
             </Button>
           </DialogActions>
         </Dialog>
-        </Container>
+      </Container>
     </CacheProvider>
   );
 };
