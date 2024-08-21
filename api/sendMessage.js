@@ -52,6 +52,16 @@ const replaceTemplateValues = (text, values) => {
     return text.replace(/{(\w+)}/g, (match, key) => values[key] || match);
 };
 
+const checkMessageStatus = async (idMessage) => {
+  try {
+    const response = await axiosInstance.get(`/messageStatus/${GREENAPI_APITOKENINSTANCE}/${idMessage}`);
+    return response.data;
+  } catch (error) {
+    console.error("Error checking message status:", error);
+    return null;
+  }
+};
+
 module.exports = async function handler(req, res) {
     console.log("Axios version:", axios.VERSION);
     console.log("Received request to send message");
@@ -85,25 +95,47 @@ module.exports = async function handler(req, res) {
 
         console.log("Preparing to send request to GreenAPI");
         console.log("API URL:", apiUrl);
-        console.log("Request payload:", { chatId, message: finalText });
+        console.log("ChatId:", chatId);
+        console.log("Message:", finalText);
 
-        try {
-            const response = await axiosInstance.post(apiUrl, { chatId, message: finalText }, {
-                headers: {
-                    'Origin': 'https://home-run-assets.vercel.app',
-                    'Access-Control-Request-Method': 'POST',
-                    'Access-Control-Request-Headers': 'Content-Type'
+        let retries = 0;
+        const maxRetries = 3;
+
+        while (retries < maxRetries) {
+            try {
+                const response = await axiosInstance.post(apiUrl, { chatId, message: finalText }, {
+                    headers: {
+                        'Origin': 'https://home-run-assets.vercel.app',
+                        'Access-Control-Request-Method': 'POST',
+                        'Access-Control-Request-Headers': 'Content-Type'
+                    }
+                });
+
+                console.log("Raw response from GreenAPI:", response);
+                console.log("Response data from GreenAPI:", response.data);
+
+                const idMessage = response.data.idMessage;
+                
+                // Check message status
+                const messageStatus = await checkMessageStatus(idMessage);
+                console.log("Message status:", messageStatus);
+
+                if (messageStatus && messageStatus.status === 'sent') {
+                    return res.status(200).json({ id: idMessage, status: 'Message sent successfully' });
+                } else {
+                    console.log(`Message not sent successfully. Retrying... (Attempt ${retries + 1})`);
+                    retries++;
                 }
-            });
-
-            console.log("Raw response from GreenAPI:", response);
-            console.log("Response data from GreenAPI:", response.data);
-
-            return res.status(200).json({ id: response.data.idMessage, status: 'Message sent successfully' });
-        } catch (axiosError) {
-            console.error("Axios specific error:", axiosError);
-            throw axiosError;
+            } catch (axiosError) {
+                console.error("Axios specific error:", axiosError);
+                retries++;
+                if (retries >= maxRetries) {
+                    throw axiosError;
+                }
+            }
         }
+
+        return res.status(500).json({ error: 'Failed to send message after multiple attempts' });
 
     } catch (error) {
         console.error("Full error object:", error);
