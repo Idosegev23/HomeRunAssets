@@ -1,5 +1,6 @@
 const path = require('path');
 const HtmlWebpackPlugin = require('html-webpack-plugin');
+const webpack = require('webpack');
 
 module.exports = {
     entry: './src/index.js',
@@ -14,13 +15,20 @@ module.exports = {
             "stream": require.resolve("stream-browserify"),
             "path": require.resolve("path-browserify"),
             "os": require.resolve("os-browserify/browser"),
-            "crypto": require.resolve("crypto-browserify")
+            "crypto": require.resolve("crypto-browserify"),
+            "http": require.resolve("stream-http"),
+            "https": require.resolve("https-browserify"),
+            "zlib": require.resolve("browserify-zlib"),
+            "assert": require.resolve("assert/")
+        },
+        alias: {
+            axios: path.resolve(__dirname, 'node_modules/axios')
         }
     },
     module: {
         rules: [
             {
-                test: /\.js$/,
+                test: /\.(js|jsx)$/,
                 exclude: /node_modules/,
                 use: {
                     loader: 'babel-loader',
@@ -43,6 +51,10 @@ module.exports = {
         new HtmlWebpackPlugin({
             template: './public/index.html',
             favicon: './public/favicon.ico'
+        }),
+        new webpack.ProvidePlugin({
+            process: 'process/browser',
+            Buffer: ['buffer', 'Buffer']
         })
     ],
     devServer: {
