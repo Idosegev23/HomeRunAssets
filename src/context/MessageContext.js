@@ -93,7 +93,6 @@ export function MessageProvider({ children }) {
           dispatch({ type: 'INCREMENT_DAILY_COUNT' });
           dispatch({ type: 'REMOVE_FROM_QUEUE', payload: 0 });
         } catch (error) {
-          console.error('Failed to send message:', error);
           dispatch({ 
             type: 'ADD_FAILED_MESSAGE', 
             payload: { ...message, error: error.message } 

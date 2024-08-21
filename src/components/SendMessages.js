@@ -6,15 +6,14 @@ import { CacheProvider } from '@emotion/react';
 import createCache from '@emotion/cache';
 import { prefixer } from 'stylis';
 import rtlPlugin from 'stylis-plugin-rtl';
-import MessageEditor from './MessageEditor.js';import './SendMessages.css';
-import { useMessageContext } from '../context/MessageContext.js';import { isHoliday, getHolidayName } from '../utils/israeliHolidays.js';
+import MessageEditor from './MessageEditor.js';
+import './SendMessages.css';
+import { useMessageContext } from '../context/MessageContext.js';
+import { isHoliday } from '../utils/israeliHolidays.js';
+
 const cacheRtl = createCache({
   key: 'muirtl',
   stylisPlugins: [prefixer, rtlPlugin],
-});
-
-const Alert = React.forwardRef(function Alert(props, ref) {
-  return <MuiAlert elevation={6} ref={ref} variant="filled" {...props} />;
 });
 
 const DAILY_MESSAGE_LIMIT = 200;
@@ -41,13 +40,11 @@ const SendMessages = () => {
 
   useEffect(() => {
     if (!location.state) {
-      console.log("No state received in location");
       setError("לא התקבלו נתונים. אנא חזור לדף הקודם ונסה שוב.");
       return;
     }
 
     if (!selectedProperties || selectedProperties.length === 0) {
-      console.log("No properties selected");
       setError("לא נבחרו נכסים. אנא חזור לדף הנכסים ובחר נכסים.");
       return;
     }
@@ -55,12 +52,10 @@ const SendMessages = () => {
     const customers = cachedEligibleCustomers;
 
     if (customers.length === 0) {
-      console.log("No eligible customers found");
       setError("לא נמצאו לקוחות מתאימים לנכסים אלו.");
       return;
     }
 
-    console.log(`Setting ${customers.length} eligible customers`);
     setSelectedCustomers(customers.map(customer => customer.id));
     setDataReady(true);
   }, [location.state, selectedProperties, cachedEligibleCustomers]);
@@ -82,7 +77,6 @@ const SendMessages = () => {
   };
 
   const replaceTokens = useCallback((message, customer, properties) => {
-    console.log("Replacing tokens in message");
     let finalMessage = message;
     properties.forEach((property, index) => {
       const tokens = {
@@ -102,13 +96,11 @@ const SendMessages = () => {
         finalMessage = finalMessage.replace(new RegExp(token, 'g'), value);
       });
     });
-    console.log("Tokens replaced in message");
     return finalMessage;
   }, []);
 
   const isWithinAllowedTime = useCallback(() => {
     if (overrideTimeRestriction) {
-      console.log("Time restriction override is active");
       return true;
     }
 
@@ -117,32 +109,24 @@ const SendMessages = () => {
     const day = now.getDay();
     const holiday = isHoliday(now);
 
-    console.log(`Checking allowed time: Hour ${hours}, Day ${day}, Holiday: ${holiday}`);
-
     if (holiday || day === 6 || (day === 5 && hours >= 14) || hours >= 20 || hours < 8) {
-      console.log("Outside allowed time");
       return false;
     }
-    console.log("Within allowed time");
     return true;
   }, [overrideTimeRestriction]);
 
   const handleSendMessages = useCallback(() => {
-    console.log("Starting handleSendMessages");
     setOpenConfirmDialog(false);
 
     const totalCustomers = selectedCustomers.length;
-    console.log(`Total customers to process: ${totalCustomers}`);
 
     if (messageState.dailyMessageCount >= DAILY_MESSAGE_LIMIT) {
-      console.log("Daily message limit reached");
       setError("כמות ההודעות המקסימלית להיום הושגה. ניתן לשלוח הודעות נוספות מחר.");
       setOpenSnackbar(true);
       return;
     }
 
     if (!isWithinAllowedTime()) {
-      console.log("Outside allowed time for sending messages");
       setOpenTimeOverrideDialog(true);
       return;
     }
@@ -175,10 +159,7 @@ const SendMessages = () => {
     setOverrideTimeRestriction(override);
     setOpenTimeOverrideDialog(false);
     if (override) {
-      console.log("Time restriction override activated");
       handleSendMessages();
-    } else {
-      console.log("Message sending cancelled due to time restrictions");
     }
   }, [handleSendMessages]);
 
@@ -273,10 +254,7 @@ const SendMessages = () => {
                   backgroundSending={messageState.sending}
                   progress={messageState.progress}
                   selectedCustomers={selectedCustomers}
-                  handleSendMessages={() => {
-                    console.log("Send button clicked");
-                    setOpenConfirmDialog(true);
-                  }}
+                  handleSendMessages={() => setOpenConfirmDialog(true)}
                   handleCancelSending={() => dispatch({ type: 'STOP_SENDING' })}
                 />
               </Paper>
@@ -301,10 +279,7 @@ const SendMessages = () => {
             <Button onClick={() => setOpenConfirmDialog(false)}>
               ביטול
             </Button>
-            <Button onClick={() => {
-              console.log("Confirming send operation");
-              handleSendMessages();
-            }} color="primary">
+            <Button onClick={() => handleSendMessages()} color="primary">
               אישור
             </Button>
           </DialogActions>
