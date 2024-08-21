@@ -7,6 +7,14 @@
   "engines": {
     "node": ">=14.0.0"
   },
+  "scripts": {
+    "start": "react-scripts start",
+    "build": "CI=false react-scripts build",
+    "test": "react-scripts test",
+    "eject": "react-scripts eject",
+    "dev": "concurrently \"npm start\" \"cd server && npm run dev\"",
+    "vercel-build": "npm install --legacy-peer-deps && npm run build"
+  },
   "dependencies": {
     "@emotion/react": "^11.13.0",
     "@emotion/styled": "^11.13.0",
@@ -42,13 +50,8 @@
     "stylis-plugin-rtl": "^2.1.1",
     "web-vitals": "^2.1.4"
   },
-  "scripts": {
-    "start": "react-scripts start",
-    "build": "CI=false react-scripts build",
-    "test": "react-scripts test",
-    "eject": "react-scripts eject",
-    "dev": "concurrently \"npm start\" \"cd server && npm run dev\"",
-    "vercel-build": "npm install --legacy-peer-deps && npm run build"
+  "devDependencies": {
+    "@babel/plugin-proposal-private-property-in-object": "^7.21.11"
   },
   "eslintConfig": {
     "extends": [
@@ -71,8 +74,5 @@
   "resolutions": {
     "react": "^18.2.0",
     "react-dom": "^18.2.0"
-  },
-  "devDependencies": {
-    "@babel/plugin-proposal-private-property-in-object": "^7.21.11"
   }
 }
