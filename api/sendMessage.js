@@ -1,7 +1,14 @@
-import axios from 'axios';
+const axios = require('axios');
+
 const GREENAPI_ID = process.env.GREENAPI_ID;
 const GREENAPI_APITOKENINSTANCE = process.env.GREENAPI_APITOKENINSTANCE;
 const GREENAPI_BASE_URL = `https://api.green-api.com/waInstance${GREENAPI_ID}`;
+
+const axiosInstance = axios.create({
+  baseURL: GREENAPI_BASE_URL,
+  timeout: 10000,
+  headers: {'Content-Type': 'application/json'}
+});
 
 const isWithinAllowedTime = () => {
     const now = new Date();
@@ -29,9 +36,11 @@ const isWithinAllowedTime = () => {
     return true;
 };
 
-export default async function handler(req, res) {
+module.exports = async function handler(req, res) {
+    console.log("Axios version:", axios.VERSION);
+    console.log("Received request to send message");
+
     try {
-        console.log("Received request to send message");
         const { phoneNumber, text } = req.body;
 
         if (!phoneNumber || !text) {
@@ -45,16 +54,42 @@ export default async function handler(req, res) {
         }
 
         const chatId = `${phoneNumber.replace(/\D/g, '').replace(/^0/, '972')}@c.us`;
-        const apiUrl = `${GREENAPI_BASE_URL}/sendMessage/${GREENAPI_APITOKENINSTANCE}`;
+        const apiUrl = `/sendMessage/${GREENAPI_APITOKENINSTANCE}`;
 
-        console.log("Sending request to GreenAPI with Chat ID:", chatId);
-        const response = await axios.post(apiUrl, { chatId, message: text });
+        console.log("Preparing to send request to GreenAPI");
+        console.log("API URL:", apiUrl);
+        console.log("Request payload:", { chatId, message: text });
 
-        console.log("Response from GreenAPI:", response.data);
-        return res.status(200).json({ id: response.data.idMessage, status: 'Message sent successfully' });
+        try {
+            const response = await axiosInstance.post(apiUrl, { chatId, message: text }, {
+                headers: {
+                    'Origin': 'https://home-run-assets.vercel.app',
+                    'Access-Control-Request-Method': 'POST',
+                    'Access-Control-Request-Headers': 'Content-Type'
+                }
+            });
+
+            console.log("Raw response from GreenAPI:", response);
+            console.log("Response data from GreenAPI:", response.data);
+
+            return res.status(200).json({ id: response.data.idMessage, status: 'Message sent successfully' });
+        } catch (axiosError) {
+            console.error("Axios specific error:", axiosError);
+            throw axiosError;
+        }
 
     } catch (error) {
-        console.error("Error occurred during message sending:", error);
+        console.error("Full error object:", error);
+        
+        if (error.code === 'ECONNREFUSED') {
+            console.error("Connection refused. Check your network or the API endpoint.");
+            return res.status(503).json({ error: 'Service unavailable' });
+        }
+
+        if (error.code === 'ETIMEDOUT') {
+            console.error("Request timed out. The API might be slow or unresponsive.");
+            return res.status(504).json({ error: 'Gateway timeout' });
+        }
 
         if (error.response) {
             const statusCode = error.response.status;
@@ -71,4 +106,4 @@ export default async function handler(req, res) {
         console.error("Error setting up the request", error.message);
         return res.status(500).json({ error: 'Error setting up the request', details: error.message });
     }
-}
+};
