@@ -15,11 +15,11 @@ import {
   CircularProgress,
   Link
 } from '@mui/material';
-import SendIcon from '@mui/icons-material/Send';
-import AttachFileIcon from '@mui/icons-material/AttachFile';
-import SearchIcon from '@mui/icons-material/Search';
-import ImageIcon from '@mui/icons-material/Image';
-import VideoIcon from '@mui/icons-material/Videocam';
+import SendIcon from '@mui/icons-material/Send/index.js';
+import AttachFileIcon from '@mui/icons-material/AttachFile/index.js';
+import SearchIcon from '@mui/icons-material/Search/index.js';
+import ImageIcon from '@mui/icons-material/Image/index.js';
+import VideoIcon from '@mui/icons-material/Videocam/index.js';
 import api from '../utils/api.js';import { debounce } from 'lodash';
 import ErrorBoundary from './ErrorBoundary.js';
 const ChatInterface = () => {

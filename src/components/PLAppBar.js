@@ -1,8 +1,8 @@
 import React from 'react';
 import { Toolbar, Typography, Box, IconButton, Switch } from '@mui/material';
-import RefreshIcon from '@mui/icons-material/Refresh';
-import ViewModuleIcon from '@mui/icons-material/ViewModule';
-import ViewListIcon from '@mui/icons-material/ViewList';
+import RefreshIcon from '@mui/icons-material/Refresh/index.js';
+import ViewModuleIcon from '@mui/icons-material/ViewModule/index.js';
+import ViewListIcon from '@mui/icons-material/ViewList/index.js';
 import { StyledAppBar } from './PropertyListStyles.js';
 const PLAppBar = ({ isDarkMode, toggleDarkMode, viewMode, toggleViewMode, fetchProperties }) => {
   return (

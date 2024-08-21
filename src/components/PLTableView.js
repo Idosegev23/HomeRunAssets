@@ -11,7 +11,7 @@ import {
   Tooltip,
   IconButton
 } from '@mui/material';
-import SendIcon from '@mui/icons-material/Send';
+import SendIcon from '@mui/icons-material/Send/index.js';
  import { styled } from '@mui/material/styles/index.js';
 
 const StyledTableContainer = styled(TableContainer)(({ theme }) => ({

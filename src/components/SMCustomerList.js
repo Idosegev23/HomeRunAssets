@@ -1,10 +1,10 @@
 import React, { useState } from 'react';
 import { Paper, Typography, Button, TextField, List, Checkbox, Card, CardContent, Grid, IconButton } from '@mui/material';
-import SearchIcon from '@mui/icons-material/Search';
-import PreviewIcon from '@mui/icons-material/Visibility';
-import AttachMoneyIcon from '@mui/icons-material/AttachMoney';
-import HomeIcon from '@mui/icons-material/Home';
-import LocationOnIcon from '@mui/icons-material/LocationOn';
+import SearchIcon from '@mui/icons-material/Search/index.js';
+import PreviewIcon from '@mui/icons-material/Visibility/index.js';
+import AttachMoneyIcon from '@mui/icons-material/AttachMoney/index.js';
+import HomeIcon from '@mui/icons-material/Home/index.js';
+import LocationOnIcon from '@mui/icons-material/LocationOn/index.js';
 
 const parseCurrency = (value) => {
   if (typeof value === 'number') return value;
