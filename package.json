@@ -8,7 +8,7 @@
   },
   "scripts": {
     "start": "react-scripts start",
-"build": "CI=false GENERATE_SOURCEMAP=false react-scripts build",
+    "build": "CI=false GENERATE_SOURCEMAP=false react-scripts build",
     "test": "react-scripts test",
     "eject": "react-scripts eject",
     "dev": "concurrently \"npm start\" \"cd server && npm run dev\"",
@@ -51,7 +51,12 @@
     "web-vitals": "^2.1.4"
   },
   "devDependencies": {
-    "@babel/plugin-proposal-private-property-in-object": "^7.21.11"
+    "@babel/plugin-proposal-private-property-in-object": "^7.21.11",
+    "assert": "^2.1.0",
+    "browserify-zlib": "^0.2.0",
+    "https-browserify": "^1.0.0",
+    "process": "^0.11.10",
+    "stream-http": "^3.2.0"
   },
   "eslintConfig": {
     "extends": [
