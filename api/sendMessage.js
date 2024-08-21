@@ -38,11 +38,18 @@ const isWithinAllowedTime = () => {
 
 const formatPhoneNumber = (phoneNumber) => {
     console.log("Formatting phone number:", phoneNumber);
-    if (typeof phoneNumber !== 'string') {
-        console.error("Phone number is not a string:", phoneNumber);
-        throw new Error('Phone number must be a string');
+    let formattedNumber = phoneNumber;
+    if (typeof phoneNumber === 'number') {
+        formattedNumber = phoneNumber.toString();
+    } else if (typeof phoneNumber !== 'string') {
+        console.error("Phone number is not a string or number:", phoneNumber);
+        throw new Error('Phone number must be a string or number');
     }
-    return phoneNumber.replace(/\D/g, '').replace(/^0/, '972');
+    return formattedNumber.replace(/\D/g, '').replace(/^0/, '972');
+};
+
+const replaceTemplateValues = (text, values) => {
+    return text.replace(/{(\w+)}/g, (match, key) => values[key] || match);
 };
 
 module.exports = async function handler(req, res) {
@@ -51,7 +58,7 @@ module.exports = async function handler(req, res) {
     console.log("Request body:", req.body);
 
     try {
-        const { phoneNumber, text } = req.body;
+        const { phoneNumber, text, templateValues } = req.body;
 
         if (!phoneNumber || !text) {
             console.error("Missing phone number or text");
@@ -71,17 +78,19 @@ module.exports = async function handler(req, res) {
             return res.status(400).json({ error: 'Invalid phone number format' });
         }
 
+        const finalText = templateValues ? replaceTemplateValues(text, templateValues) : text;
+
         const chatId = `${formattedPhoneNumber}@c.us`;
         const apiUrl = `/sendMessage/${GREENAPI_APITOKENINSTANCE}`;
 
         console.log("Preparing to send request to GreenAPI");
         console.log("API URL:", apiUrl);
-        console.log("Request payload:", { chatId, message: text });
+        console.log("Request payload:", { chatId, message: finalText });
 
         try {
-            const response = await axiosInstance.post(apiUrl, { chatId, message: text }, {
+            const response = await axiosInstance.post(apiUrl, { chatId, message: finalText }, {
                 headers: {
-                    'Origin': 'https://your-domain.com',
+                    'Origin': 'https://home-run-assets.vercel.app',
                     'Access-Control-Request-Method': 'POST',
                     'Access-Control-Request-Headers': 'Content-Type'
                 }
