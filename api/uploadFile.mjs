@@ -1,4 +1,5 @@
 import axios from 'axios';
+
 const GREENAPI_ID = process.env.GREENAPI_ID;
 const GREENAPI_APITOKENINSTANCE = process.env.GREENAPI_APITOKENINSTANCE;
 const GREENAPI_BASE_URL = `https://api.greenapi.com/waInstance${GREENAPI_ID}`;

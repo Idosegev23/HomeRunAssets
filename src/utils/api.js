@@ -1,5 +1,6 @@
-import axios from 'axios';
-const getBaseUrl = () => {
+import axios from 'axios'; // וודא שהייבוא הזה נמצא בראש הקובץ
+
+export const getApiBaseUrl = () => {
   if (process.env.NODE_ENV === 'production') {
     return 'https://home-run-assets.vercel.app/api';
   }
@@ -7,7 +8,7 @@ const getBaseUrl = () => {
 };
 
 const api = axios.create({
-  baseURL: getBaseUrl(),
+  baseURL: getApiBaseUrl(),
 });
 
 api.interceptors.request.use(

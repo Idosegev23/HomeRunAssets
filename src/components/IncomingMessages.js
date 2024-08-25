@@ -1,3 +1,4 @@
+import { getApiBaseUrl } from "../utils/api";
 import React, { useState, useEffect } from 'react';
 import {
   Box,
@@ -79,7 +80,7 @@ const IncomingMessages = () => {
     try {
       setLoading(true);
       setError(null);
-      const response = await axios.get('https://home-run-assets.vercel.app/api/lastIncomingMessages');
+      const response = await axios.get('`${getApiBaseUrl()}/lastIncomingMessages');
       console.log('Fetched messages:', response.data);
       const sortedMessages = response.data.sort((a, b) => b.timestamp - a.timestamp);
       setMessages(sortedMessages);
@@ -117,7 +118,7 @@ const IncomingMessages = () => {
       }
       const phoneNumber = selectedMessage.senderData.sender.replace('@c.us', '');
       console.log('Phone number to send:', phoneNumber);
-      const response = await axios.post('https://home-run-assets.vercel.app/api/sendMessage', {
+      const response = await axios.post('`${getApiBaseUrl()}/sendMessage', {
         phoneNumber: phoneNumber,
         text: replyText,
       });

@@ -1,4 +1,9 @@
-const axios = require('axios');
+import pkg from '../src/utils/api.js';
+import axios from 'axios';
+import 'dotenv/config';
+
+
+const { getApiBaseUrl } = pkg;
 
 const GREENAPI_ID = process.env.GREENAPI_ID;
 const GREENAPI_APITOKENINSTANCE = process.env.GREENAPI_APITOKENINSTANCE;
@@ -57,7 +62,15 @@ const formatPhoneNumber = (phoneNumber) => {
 };
 
 const replaceTemplateValues = (text, values = {}) => {
-    return text.replace(/{(\w+)}/g, (match, key) => values[key] || match);
+    console.log("Template values:", values);
+    console.log("Original text:", text);
+    const replacedText = text.replace(/{(\w+)}/g, (match, key) => {
+        const value = values[key];
+        console.log(`Replacing ${match} with ${value}`);
+        return value !== undefined ? value : match;
+    });
+    console.log("Replaced text:", replacedText);
+    return replacedText;
 };
 
 const checkMessageStatus = async (idMessage) => {
@@ -77,7 +90,7 @@ const sendMessageWithRetry = async (chatId, message, maxRetries = 3) => {
       console.log(`Attempt ${i + 1} to send message...`);
       const response = await axiosInstance.post(`/sendMessage/${GREENAPI_APITOKENINSTANCE}`, { chatId, message }, {
         headers: {
-          'Origin': 'https://home-run-assets.vercel.app',
+          'Origin': getApiBaseUrl(),
           'Access-Control-Request-Method': 'POST',
           'Access-Control-Request-Headers': 'Content-Type'
         }
@@ -92,10 +105,10 @@ const sendMessageWithRetry = async (chatId, message, maxRetries = 3) => {
   }
 };
 
-module.exports = async function handler(req, res) {
+export default async function handler(req, res) {
     console.log("Axios version:", axios.VERSION);
     console.log("Received request to send message");
-    console.log("Request body:", req.body);
+    console.log("Request body:", JSON.stringify(req.body, null, 2));
 
     try {
         const { phoneNumber, text, templateValues } = req.body;
@@ -125,6 +138,7 @@ module.exports = async function handler(req, res) {
         console.log("Preparing to send request to GreenAPI");
         console.log("ChatId:", chatId);
         console.log("Message:", finalText);
+        console.log("Template Values:", JSON.stringify(templateValues, null, 2));
 
         try {
             const response = await sendMessageWithRetry(chatId, finalText);
@@ -178,4 +192,4 @@ module.exports = async function handler(req, res) {
         console.error("Error setting up the request", error.message);
         return res.status(500).json({ error: 'Error setting up the request', details: error.message });
     }
-};
+}

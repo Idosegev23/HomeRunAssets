@@ -1,3 +1,4 @@
+import { getApiBaseUrl } from "../utils/api";
 import React, { useState, useEffect, useRef } from 'react';
 import { 
   Typography, 
@@ -193,7 +194,7 @@ const Home = () => {
 
   const fetchProperties = async () => {
     try {
-      const response = await axios.get('https://home-run-assets.vercel.app/api/dataHandler', { params: { resource: 'properties' } });
+      const response = await axios.get(`${getApiBaseUrl()}/dataHandler`, { params: { resource: 'properties' } });
       console.log('Properties fetched:', response.data);
       setProperties(response.data);
     } catch (error) {
@@ -204,11 +205,11 @@ const Home = () => {
     } finally {
       setLoading(prev => ({ ...prev, properties: false }));
     }
-  };
+};
 
-  const fetchCustomers = async () => {
+const fetchCustomers = async () => {
     try {
-      const response = await axios.get('https://home-run-assets.vercel.app/api/dataHandler', { params: { resource: 'customers' } });
+      const response = await axios.get(`${getApiBaseUrl()}/dataHandler`, { params: { resource: 'customers' } });
       console.log('Customers fetched:', response.data);
       setCustomers(response.data);
     } catch (error) {
@@ -219,11 +220,11 @@ const Home = () => {
     } finally {
       setLoading(prev => ({ ...prev, customers: false }));
     }
-  };
+};
 
-  const fetchUnreadMessages = async () => {
+const fetchUnreadMessages = async () => {
     try {
-      const response = await axios.get('https://home-run-assets.vercel.app/api/dataHandler', { params: { resource: 'messages/unread' } });
+      const response = await axios.get(`${getApiBaseUrl()}/dataHandler`, { params: { resource: 'messages/unread' } });
       console.log('Unread messages count:', response.data);
       setUnreadMessages(response.data.count);
     } catch (error) {
@@ -234,11 +235,11 @@ const Home = () => {
     } finally {
       setLoading(prev => ({ ...prev, messages: false }));
     }
-  };
+};
 
-  const fetchTasks = async () => {
+const fetchTasks = async () => {
     try {
-      const response = await axios.get('https://home-run-assets.vercel.app/api/dataHandler', { params: { resource: 'tasks' } });
+      const response = await axios.get(`${getApiBaseUrl()}/dataHandler`, { params: { resource: 'tasks' } });
       console.log('Tasks fetched:', response.data);
       setTasks(response.data);
     } catch (error) {
@@ -249,7 +250,7 @@ const Home = () => {
     } finally {
       setLoadingTasks(false);
     }
-  };
+};
 
   useEffect(() => {
     fetchProperties();
@@ -289,7 +290,7 @@ const Home = () => {
 
   const handleTaskToggle = async (taskId) => {
     try {
-      await axios.put('https://home-run-assets.vercel.app/api/dataHandler', { resource: 'tasks', id: taskId, data: { completed: true } });
+      await axios.put('`${getApiBaseUrl()}/dataHandler', { resource: 'tasks', id: taskId, data: { completed: true } });
       setTasks(tasks.filter(task => task.id !== taskId));
       setSnackbarMessage('המשימה הושלמה בהצלחה');
       setSnackbarSeverity('success');

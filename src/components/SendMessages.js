@@ -1,8 +1,7 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { Container, Grid, Typography, Snackbar, Dialog, DialogTitle, DialogContent, DialogActions, Button, AppBar, Toolbar, CircularProgress, Paper, List, ListItem, Divider, Checkbox, FormControlLabel } from '@mui/material';
-import MuiAlert from '@mui/material/Alert';  // ודא שזה מיובא
-
+import MuiAlert from '@mui/material/Alert';
 import { CacheProvider } from '@emotion/react';
 import createCache from '@emotion/cache';
 import { prefixer } from 'stylis';
@@ -101,6 +100,7 @@ const SendMessages = () => {
         finalMessage = finalMessage.replace(new RegExp(token, 'g'), value);
       });
     });
+    console.log("Final message after token replacement:", finalMessage);
     return finalMessage;
   }, []);
 
@@ -138,10 +138,14 @@ const SendMessages = () => {
 
     const messagesToSend = selectedCustomers.map(customerId => {
       const customer = cachedEligibleCustomers.find(c => c.id === customerId);
+      console.log("Customer:", customer);
+      console.log("Selected Properties:", selectedProperties);
       const personalizedMessage = replaceTokens(customMessage, customer, selectedProperties);
+      console.log("Personalized message:", personalizedMessage);
       return {
         customer,
-        message: personalizedMessage
+        message: personalizedMessage,
+        property: selectedProperties
       };
     });
 

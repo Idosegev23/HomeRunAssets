@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useReducer, useEffect } from 'react';
 import axios from 'axios';
+
 const MessageContext = createContext();
 
 const initialState = {
@@ -66,7 +67,8 @@ export function MessageProvider({ children }) {
     try {
       const response = await axios.post(`${apiBaseUrl}/sendMessage`, {
         phoneNumber: message.customer.Cell,
-        text: message.message
+        text: message.message,
+        templateValues: message.property
       }, {
         headers: {
           'Content-Type': 'application/json',
@@ -89,10 +91,18 @@ export function MessageProvider({ children }) {
       const sendNextMessage = async () => {
         const message = state.queue[0];
         try {
+          console.log("Sending message:", message);
+          console.log("Customer details:", message.customer);
+          console.log("Property details:", message.property);
           await sendMessage(message);
           dispatch({ type: 'INCREMENT_DAILY_COUNT' });
           dispatch({ type: 'REMOVE_FROM_QUEUE', payload: 0 });
+          
+          if (state.queue.length > 1) {
+            sendNextMessage();
+          }
         } catch (error) {
+          console.error("Error sending message:", error);
           dispatch({ 
             type: 'ADD_FAILED_MESSAGE', 
             payload: { ...message, error: error.message } 
@@ -116,8 +126,8 @@ export function MessageProvider({ children }) {
     const night = new Date(
       now.getFullYear(),
       now.getMonth(),
-      now.getDate() + 1, // next day
-      0, 0, 0 // at 00:00:00 hours
+      now.getDate() + 1,
+      0, 0, 0
     );
     const msToMidnight = night.getTime() - now.getTime();
 
