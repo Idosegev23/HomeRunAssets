@@ -1,19 +1,41 @@
 import pkg from '../src/utils/api.js';
-import axios from 'axios';
 import 'dotenv/config';
+import fetch from 'node-fetch';
 
+console.log("Starting script...");
 
 const { getApiBaseUrl } = pkg;
+
+console.log("Environment variables:");
+console.log("GREENAPI_ID:", process.env.GREENAPI_ID);
+console.log("GREENAPI_APITOKENINSTANCE:", process.env.GREENAPI_APITOKENINSTANCE);
 
 const GREENAPI_ID = process.env.GREENAPI_ID;
 const GREENAPI_APITOKENINSTANCE = process.env.GREENAPI_APITOKENINSTANCE;
 const GREENAPI_BASE_URL = `https://api.green-api.com/waInstance${GREENAPI_ID}`;
 
-const axiosInstance = axios.create({
-  baseURL: GREENAPI_BASE_URL,
-  timeout: 30000,
-  headers: {'Content-Type': 'application/json'}
-});
+console.log("GREENAPI_BASE_URL:", GREENAPI_BASE_URL);
+
+const sendRequest = async (url, method, body = null) => {
+  console.log(`Sending ${method} request to ${url}`);
+  const options = {
+    method,
+    headers: {
+      'Content-Type': 'application/json',
+      'Origin': getApiBaseUrl(),
+    },
+  };
+
+  if (body) {
+    options.body = JSON.stringify(body);
+  }
+
+  const response = await fetch(url, options);
+  if (!response.ok) {
+    throw new Error(`HTTP error! status: ${response.status}`);
+  }
+  return response.json();
+};
 
 const isWithinAllowedTime = () => {
     const now = new Date();
@@ -58,6 +80,7 @@ const formatPhoneNumber = (phoneNumber) => {
         formattedNumber = '972' + formattedNumber;
     }
     
+    console.log("Formatted phone number:", formattedNumber);
     return formattedNumber;
 };
 
@@ -75,9 +98,11 @@ const replaceTemplateValues = (text, values = {}) => {
 
 const checkMessageStatus = async (idMessage) => {
   try {
-    const response = await axiosInstance.get(`/messageStatus/${GREENAPI_APITOKENINSTANCE}/${idMessage}`);
-    console.log("Full message status response:", response.data);
-    return response.data;
+    console.log(`Checking message status for ID: ${idMessage}`);
+    const url = `${GREENAPI_BASE_URL}/messageStatus/${GREENAPI_APITOKENINSTANCE}/${idMessage}`;
+    const data = await sendRequest(url, 'GET');
+    console.log("Full message status response:", data);
+    return data;
   } catch (error) {
     console.error("Error checking message status:", error);
     return null;
@@ -88,15 +113,10 @@ const sendMessageWithRetry = async (chatId, message, maxRetries = 3) => {
   for (let i = 0; i < maxRetries; i++) {
     try {
       console.log(`Attempt ${i + 1} to send message...`);
-      const response = await axiosInstance.post(`/sendMessage/${GREENAPI_APITOKENINSTANCE}`, { chatId, message }, {
-        headers: {
-          'Origin': getApiBaseUrl(),
-          'Access-Control-Request-Method': 'POST',
-          'Access-Control-Request-Headers': 'Content-Type'
-        }
-      });
+      const url = `${GREENAPI_BASE_URL}/sendMessage/${GREENAPI_APITOKENINSTANCE}`;
+      const data = await sendRequest(url, 'POST', { chatId, message });
       console.log(`Message sent successfully on attempt ${i + 1}`);
-      return response.data;
+      return data;
     } catch (error) {
       console.error(`Attempt ${i + 1} failed:`, error.message);
       if (i === maxRetries - 1) throw error;
@@ -106,7 +126,7 @@ const sendMessageWithRetry = async (chatId, message, maxRetries = 3) => {
 };
 
 export default async function handler(req, res) {
-    console.log("Axios version:", axios.VERSION);
+    console.log("Handler function called");
     console.log("Received request to send message");
     console.log("Request body:", JSON.stringify(req.body, null, 2));
 
@@ -157,7 +177,7 @@ export default async function handler(req, res) {
         } catch (error) {
             console.error("Error sending message:", error);
             
-            if (error.response && error.response.status === 504) {
+            if (error.type === 'system' && error.code === 'ETIMEDOUT') {
                 return res.status(504).json({ error: 'Gateway Timeout. The server did not respond in time.' });
             }
 
@@ -172,7 +192,7 @@ export default async function handler(req, res) {
             return res.status(503).json({ error: 'Service unavailable' });
         }
 
-        if (error.code === 'ETIMEDOUT') {
+        if (error.type === 'system' && error.code === 'ETIMEDOUT') {
             console.error("Request timed out. The API might be slow or unresponsive.");
             return res.status(504).json({ error: 'Gateway timeout' });
         }
@@ -184,8 +204,8 @@ export default async function handler(req, res) {
             return res.status(statusCode).json({ error: errorMessage });
         }
 
-        if (error.request) {
-            console.error("No response received from GreenAPI", error.request);
+        if (error.type === 'request') {
+            console.error("No response received from GreenAPI", error);
             return res.status(500).json({ error: 'No response received from messaging service' });
         }
 
