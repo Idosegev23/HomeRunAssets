@@ -39,7 +39,18 @@ const ChatInterface = () => {
     try {
       setLoading(true);
       const response = await axios.get(`${API_BASE_URL}/getLastIncomingMessages`);
-      setChats(response.data);
+      const formattedChats = await Promise.all(response.data.map(async chat => {
+        const phoneNumber = chat.senderData.sender.replace(/^\+?972/, '').replace('@c.us', '');
+        const senderName = await fetchSenderName(phoneNumber);
+        return {
+          ...chat,
+          senderData: {
+            ...chat.senderData,
+            senderName: senderName || phoneNumber,
+          },
+        };
+      }));
+      setChats(formattedChats);
     } catch (error) {
       handleApiError(error);
     } finally {
@@ -56,6 +67,16 @@ const ChatInterface = () => {
       handleApiError(error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchSenderName = async (phoneNumber) => {
+    try {
+      const response = await axios.get(`${API_BASE_URL}/fetchSenderName`, { params: { phoneNumber } });
+      return response.data.name;
+    } catch (error) {
+      console.error('Error fetching sender name:', error);
+      return null;
     }
   };
 
@@ -132,24 +153,26 @@ const ChatInterface = () => {
       </div>
 
       {/* חלון צ'אט */}
-      <div className="flex-1 flex flex-col">
+      <div className="flex-1 flex flex-col bg-gray-200">
         {selectedChat ? (
           <>
-            <div className="bg-gray-200 p-4">
+            <div className="bg-gray-300 p-4">
               <h2 className="font-semibold">{selectedChat.senderData?.senderName || selectedChat.senderData?.sender}</h2>
               <p className="text-sm text-gray-600">{selectedChat.senderData?.sender}</p>
             </div>
-            <div ref={chatContainerRef} className="flex-1 overflow-y-auto p-4">
+            <div ref={chatContainerRef} className="flex-1 overflow-y-auto p-4 bg-white">
               {messages.map((message) => (
-                <div key={message.id} className={`mb-4 ${message.sender === 'Me' ? 'text-left' : 'text-right'}`}>
-                  <div className={`inline-block p-2 rounded-lg ${message.sender === 'Me' ? 'bg-green-500 text-white' : 'bg-white text-black'}`}>
+                <div key={message.id} className={`mb-4 flex ${message.sender === 'Me' ? 'justify-end' : 'justify-start'}`}>
+                  <div className={`inline-block p-2 rounded-lg max-w-xs ${message.sender === 'Me' ? 'bg-green-500 text-white' : 'bg-gray-100 text-black'}`}>
                     {message.text || 'No text'}
                   </div>
-                  <div className="text-xs text-gray-500 mt-1">{new Date(message.timestamp * 1000).toLocaleString('he-IL')}</div>
+                  <div className="text-xs text-gray-500 mt-1">
+                    {new Date(message.timestamp * 1000).toLocaleString('he-IL')}
+                  </div>
                 </div>
               ))}
             </div>
-            <div className="bg-gray-200 p-4">
+            <div className="bg-gray-300 p-4">
               <div className="flex items-center">
                 <button onClick={handleSendMessage} className="ml-2 bg-green-500 text-white p-2 rounded">
                   <Send size={24} />
