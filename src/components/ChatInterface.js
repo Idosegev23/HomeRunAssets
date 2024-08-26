@@ -1,8 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Search, Send, Image, Video, File } from 'lucide-react';
 import axios from 'axios';
+import { Search, Send, Image, Video, File } from 'lucide-react';
 
-const API_BASE_URL = process.env.REACT_APP_API_BASE_URL || 'https://your-server-url.com/api';
+const API_BASE_URL = process.env.REACT_APP_API_BASE_URL || 'https://home-run-assets.vercel.app/api';
 
 const ChatInterface = () => {
   const [chats, setChats] = useState([]);
@@ -11,7 +11,6 @@ const ChatInterface = () => {
   const [inputMessage, setInputMessage] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
-  const [searchQuery, setSearchQuery] = useState('');
   const chatContainerRef = useRef(null);
   const fileInputRef = useRef(null);
 
@@ -33,20 +32,13 @@ const ChatInterface = () => {
 
   const handleApiError = (error) => {
     console.error('API Error:', error);
-    if (error.response) {
-      setError(`Error ${error.response.status}: ${error.response.data.error || 'Unknown error'}`);
-    } else if (error.request) {
-      setError('No response received from the server. Please check your network connection.');
-    } else {
-      setError(`Error: ${error.message}`);
-    }
+    setError('An error occurred. Please try again.');
   };
 
   const fetchChats = async () => {
     try {
       setLoading(true);
-      setError(null);
-      const response = await axios.get(`${API_BASE_URL}/chat.mjs?getRecentMessages`);
+      const response = await axios.get(`${API_BASE_URL}/getLastIncomingMessages`);
       setChats(response.data);
     } catch (error) {
       handleApiError(error);
@@ -58,10 +50,7 @@ const ChatInterface = () => {
   const fetchMessages = async (phoneNumber) => {
     try {
       setLoading(true);
-      setError(null);
-      const response = await axios.get(`${API_BASE_URL}/chat.mjs?getChatHistory`, {
-        params: { phoneNumber }
-      });
+      const response = await axios.get(`${API_BASE_URL}/getChatHistory`, { params: { phoneNumber } });
       setMessages(response.data);
     } catch (error) {
       handleApiError(error);
@@ -71,68 +60,50 @@ const ChatInterface = () => {
   };
 
   const handleSendMessage = async () => {
-    if (inputMessage.trim() && selectedChat) {
-      try {
-        setLoading(true);
-        setError(null);
-        const response = await axios.post(`${API_BASE_URL}/chat.mjs?sendMessage`, {
-          phoneNumber: selectedChat.phoneNumber,
-          message: inputMessage
-        });
-        setMessages(prevMessages => [...prevMessages, {
-          id: response.data.messageId,
-          sender: 'Me',
-          text: inputMessage,
-          timestamp: Math.floor(Date.now() / 1000)
-        }]);
-        setInputMessage('');
-      } catch (error) {
-        handleApiError(error);
-      } finally {
-        setLoading(false);
-      }
+    if (!inputMessage.trim() || !selectedChat) return;
+    try {
+      setLoading(true);
+      const response = await axios.post(`${API_BASE_URL}/sendMessage`, {
+        phoneNumber: selectedChat.phoneNumber,
+        message: inputMessage
+      });
+      setMessages([...messages, { id: response.data.messageId, sender: 'Me', text: inputMessage, timestamp: Math.floor(Date.now() / 1000) }]);
+      setInputMessage('');
+    } catch (error) {
+      handleApiError(error);
+    } finally {
+      setLoading(false);
     }
   };
 
   const handleFileUpload = async (event) => {
     const file = event.target.files[0];
-    if (file && selectedChat) {
-      try {
-        setLoading(true);
-        setError(null);
-        const formData = new FormData();
-        formData.append('file', file);
-        
-        // Upload file to your server or a file hosting service
-        // This step depends on your backend implementation
-        const uploadResponse = await axios.post(`${API_BASE_URL}/uploadFile`, formData);
-        const fileUrl = uploadResponse.data.fileUrl;
+    if (!file || !selectedChat) return;
+    try {
+      setLoading(true);
+      const formData = new FormData();
+      formData.append('file', file);
+      
+      const uploadResponse = await axios.post(`${API_BASE_URL}/uploadFile`, formData);
+      const fileUrl = uploadResponse.data.fileUrl;
 
-        // Send file using Green API
-        const response = await axios.post(`${API_BASE_URL}/chat.mjs?sendFile`, {
-          phoneNumber: selectedChat.phoneNumber,
-          fileUrl: fileUrl,
-          caption: file.name
-        });
+      const response = await axios.post(`${API_BASE_URL}/sendFile`, {
+        phoneNumber: selectedChat.phoneNumber,
+        fileUrl,
+        caption: file.name
+      });
 
-        setMessages(prevMessages => [...prevMessages, {
-          id: response.data.messageId,
-          sender: 'Me',
-          text: `File: ${file.name}`,
-          timestamp: Math.floor(Date.now() / 1000),
-          fileUrl: fileUrl
-        }]);
-      } catch (error) {
-        handleApiError(error);
-      } finally {
-        setLoading(false);
-      }
+      setMessages([...messages, { id: response.data.messageId, sender: 'Me', text: `File: ${file.name}`, timestamp: Math.floor(Date.now() / 1000) }]);
+    } catch (error) {
+      handleApiError(error);
+    } finally {
+      setLoading(false);
     }
   };
 
   return (
     <div className="flex h-screen bg-gray-100" dir="rtl">
-      {/* Chat List */}
+      {/* רשימת צ'אטים */}
       <div className="w-1/4 bg-white border-l">
         <div className="p-4">
           <div className="relative">
@@ -140,7 +111,7 @@ const ChatInterface = () => {
               type="text"
               placeholder="חיפוש צ'אטים"
               className="w-full p-2 pr-8 rounded border"
-              onChange={(e) => setSearchQuery(e.target.value)}
+              onChange={(e) => console.log(e.target.value)} // פונקציית חיפוש בסיסית, ניתן להרחיב לפי צורך
             />
             <Search className="absolute right-2 top-2 text-gray-400" size={20} />
           </div>
@@ -148,60 +119,39 @@ const ChatInterface = () => {
         <ul className="overflow-y-auto h-[calc(100vh-80px)]">
           {chats.map((chat) => (
             <li
-              key={chat.phoneNumber}
-              className={`p-4 hover:bg-gray-100 cursor-pointer ${
-                selectedChat?.phoneNumber === chat.phoneNumber ? 'bg-gray-200' : ''
-              }`}
+              key={chat.idMessage}
+              className={`p-4 hover:bg-gray-100 cursor-pointer ${selectedChat?.phoneNumber === chat.senderData.sender ? 'bg-gray-200' : ''}`}
               onClick={() => setSelectedChat(chat)}
             >
-              <div className="font-semibold">{chat.customerName}</div>
-              <div className="text-sm text-gray-600">{chat.phoneNumber}</div>
-              <div className="text-xs text-gray-500">{chat.lastMessage}</div>
+              <div className="font-semibold">{chat.senderData?.senderName || chat.senderData?.sender}</div>
+              <div className="text-sm text-gray-600">{chat.senderData?.sender}</div>
+              <div className="text-xs text-gray-500">{chat.textMessage}</div>
             </li>
           ))}
         </ul>
       </div>
 
-      {/* Chat Window */}
+      {/* חלון צ'אט */}
       <div className="flex-1 flex flex-col">
         {selectedChat ? (
           <>
             <div className="bg-gray-200 p-4">
-              <h2 className="font-semibold">{selectedChat.customerName}</h2>
-              <p className="text-sm text-gray-600">{selectedChat.phoneNumber}</p>
+              <h2 className="font-semibold">{selectedChat.senderData?.senderName || selectedChat.senderData?.sender}</h2>
+              <p className="text-sm text-gray-600">{selectedChat.senderData?.sender}</p>
             </div>
-            <div 
-              ref={chatContainerRef}
-              className="flex-1 overflow-y-auto p-4"
-            >
+            <div ref={chatContainerRef} className="flex-1 overflow-y-auto p-4">
               {messages.map((message) => (
-                <div
-                  key={message.id}
-                  className={`mb-4 ${
-                    message.sender === 'Me' ? 'text-left' : 'text-right'
-                  }`}
-                >
-                  <div
-                    className={`inline-block p-2 rounded-lg ${
-                      message.sender === 'Me'
-                        ? 'bg-green-500 text-white'
-                        : 'bg-white'
-                    }`}
-                  >
+                <div key={message.id} className={`mb-4 ${message.sender === 'Me' ? 'text-left' : 'text-right'}`}>
+                  <div className={`inline-block p-2 rounded-lg ${message.sender === 'Me' ? 'bg-green-500 text-white' : 'bg-white text-black'}`}>
                     {message.text}
                   </div>
-                  <div className="text-xs text-gray-500 mt-1">
-                    {new Date(message.timestamp * 1000).toLocaleString('he-IL')}
-                  </div>
+                  <div className="text-xs text-gray-500 mt-1">{new Date(message.timestamp * 1000).toLocaleString('he-IL')}</div>
                 </div>
               ))}
             </div>
             <div className="bg-gray-200 p-4">
               <div className="flex items-center">
-                <button
-                  onClick={handleSendMessage}
-                  className="ml-2 bg-green-500 text-white p-2 rounded"
-                >
+                <button onClick={handleSendMessage} className="ml-2 bg-green-500 text-white p-2 rounded">
                   <Send size={24} />
                 </button>
                 <input
@@ -218,22 +168,13 @@ const ChatInterface = () => {
                   onChange={handleFileUpload}
                   accept="image/*,video/*,application/pdf"
                 />
-                <button
-                  onClick={() => fileInputRef.current.click()}
-                  className="mr-2"
-                >
+                <button onClick={() => fileInputRef.current.click()} className="mr-2">
                   <File size={24} />
                 </button>
-                <button
-                  onClick={() => fileInputRef.current.click()}
-                  className="mr-2"
-                >
+                <button onClick={() => fileInputRef.current.click()} className="mr-2">
                   <Video size={24} />
                 </button>
-                <button
-                  onClick={() => fileInputRef.current.click()}
-                  className="mr-2"
-                >
+                <button onClick={() => fileInputRef.current.click()} className="mr-2">
                   <Image size={24} />
                 </button>
               </div>
