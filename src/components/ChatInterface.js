@@ -39,17 +39,16 @@ const ChatInterface = () => {
     try {
       setLoading(true);
       const response = await axios.get(`${API_BASE_URL}/getLastIncomingMessages`);
-      const formattedChats = await Promise.all(response.data.map(async chat => {
-        const phoneNumber = chat.senderData.sender.replace(/^\+?972/, '').replace('@c.us', '');
-        const senderName = await fetchSenderName(phoneNumber);
+      const formattedChats = response.data.map(chat => {
+        const phoneNumber = chat.senderId.replace(/^\+?972/, '0').replace('@c.us', '');
         return {
           ...chat,
           senderData: {
             ...chat.senderData,
-            senderName: senderName || phoneNumber,
+            phoneNumber,
           },
         };
-      }));
+      });
       setChats(formattedChats);
     } catch (error) {
       handleApiError(error);
@@ -67,16 +66,6 @@ const ChatInterface = () => {
       handleApiError(error);
     } finally {
       setLoading(false);
-    }
-  };
-
-  const fetchSenderName = async (phoneNumber) => {
-    try {
-      const response = await axios.get(`${API_BASE_URL}/fetchSenderName`, { params: { phoneNumber } });
-      return response.data.name;
-    } catch (error) {
-      console.error('Error fetching sender name:', error);
-      return null;
     }
   };
 
@@ -141,12 +130,11 @@ const ChatInterface = () => {
           {chats.map((chat) => (
             <li
               key={chat.idMessage}
-              className={`p-4 hover:bg-gray-100 cursor-pointer ${selectedChat?.phoneNumber === chat.senderData?.sender ? 'bg-gray-200' : ''}`}
+              className={`p-4 hover:bg-gray-100 cursor-pointer ${selectedChat?.phoneNumber === chat.senderData?.phoneNumber ? 'bg-gray-200' : ''}`}
               onClick={() => setSelectedChat(chat)}
             >
-              <div className="font-semibold">{chat.senderData?.senderName || chat.senderData?.sender}</div>
-              <div className="text-sm text-gray-600">{chat.senderData?.sender}</div>
-              <div className="text-xs text-gray-500">{chat.textMessage}</div>
+              <div className="font-semibold">{chat.senderName || chat.senderData?.phoneNumber}</div>
+              <div className="text-sm text-gray-600">{chat.textMessage}</div>
             </li>
           ))}
         </ul>
@@ -157,8 +145,8 @@ const ChatInterface = () => {
         {selectedChat ? (
           <>
             <div className="bg-gray-300 p-4">
-              <h2 className="font-semibold">{selectedChat.senderData?.senderName || selectedChat.senderData?.sender}</h2>
-              <p className="text-sm text-gray-600">{selectedChat.senderData?.sender}</p>
+              <h2 className="font-semibold">{selectedChat.senderName || selectedChat.senderData?.phoneNumber}</h2>
+              <p className="text-sm text-gray-600">{selectedChat.senderData?.phoneNumber}</p>
             </div>
             <div ref={chatContainerRef} className="flex-1 overflow-y-auto p-4 bg-white">
               {messages.map((message) => (
