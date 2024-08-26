@@ -40,14 +40,18 @@ const ChatInterface = () => {
       setLoading(true);
       const response = await axios.get(`${API_BASE_URL}/getLastIncomingMessages`);
       const formattedChats = response.data.map(chat => {
-        const phoneNumber = chat.senderId.replace(/^\+?972/, '0').replace('@c.us', '');
-        return {
-          ...chat,
-          senderData: {
-            ...chat.senderData,
-            phoneNumber,
-          },
-        };
+        if (chat.senderId) {
+          const phoneNumber = chat.senderId.replace(/^\+?972/, '0').replace('@c.us', '');
+          console.log('Formatted phone number:', phoneNumber);
+          return {
+            ...chat,
+            senderData: {
+              ...chat.senderData,
+              phoneNumber,
+            },
+          };
+        }
+        return chat;
       });
       setChats(formattedChats);
     } catch (error) {
@@ -60,6 +64,7 @@ const ChatInterface = () => {
   const fetchMessages = async (phoneNumber) => {
     try {
       setLoading(true);
+      console.log('Fetching messages for:', phoneNumber);
       const response = await axios.get(`${API_BASE_URL}/getChatHistory`, { params: { phoneNumber } });
       setMessages(response.data);
     } catch (error) {
@@ -73,6 +78,7 @@ const ChatInterface = () => {
     if (!inputMessage.trim() || !selectedChat) return;
     try {
       setLoading(true);
+      console.log('Sending message to:', selectedChat.phoneNumber);
       const response = await axios.post(`${API_BASE_URL}/sendMessage`, {
         phoneNumber: selectedChat.phoneNumber,
         message: inputMessage
@@ -91,12 +97,15 @@ const ChatInterface = () => {
     if (!file || !selectedChat) return;
     try {
       setLoading(true);
+      console.log('Uploading file:', file.name);
+
       const formData = new FormData();
       formData.append('file', file);
       
       const uploadResponse = await axios.post(`${API_BASE_URL}/uploadFile`, formData);
       const fileUrl = uploadResponse.data.fileUrl;
 
+      console.log('Sending file to:', selectedChat.phoneNumber);
       const response = await axios.post(`${API_BASE_URL}/sendFile`, {
         phoneNumber: selectedChat.phoneNumber,
         fileUrl,

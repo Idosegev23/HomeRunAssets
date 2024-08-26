@@ -9,13 +9,21 @@ const GREENAPI_BASE_URL = `https://api.green-api.com/waInstance${GREENAPI_ID}`;
 export async function sendMessage(req, res) {
   const { phoneNumber, message } = req.body;
   try {
+    if (!phoneNumber) {
+      console.error('Phone number is missing');
+      return res.status(400).json({ error: 'Phone number is required' });
+    }
+
     const chatId = `${phoneNumber.replace(/\D/g, '').replace(/^0/, '972')}@c.us`;
+    console.log('Sending message to:', chatId);
+
     const response = await axios.post(`${GREENAPI_BASE_URL}/sendMessage/${GREENAPI_APITOKENINSTANCE}`, {
       chatId,
       message
     });
     res.status(200).json({ success: true, messageId: response.data.idMessage });
   } catch (error) {
+    console.error('Failed to send message:', error);
     res.status(500).json({ error: 'Failed to send message' });
   }
 }
@@ -24,10 +32,18 @@ export async function sendMessage(req, res) {
 export async function getRecentMessages(req, res) {
   const { phoneNumber } = req.query;
   try {
+    if (!phoneNumber) {
+      console.error('Phone number is missing');
+      return res.status(400).json({ error: 'Phone number is required' });
+    }
+
     const chatId = `${phoneNumber.replace(/\D/g, '').replace(/^0/, '972')}@c.us`;
+    console.log('Fetching recent messages for:', chatId);
+
     const cachedMessages = await kv.get(`recent_messages:${chatId}`);
     
     if (cachedMessages) {
+      console.log('Returning cached messages');
       return res.status(200).json(cachedMessages);
     }
 
@@ -47,6 +63,7 @@ export async function getRecentMessages(req, res) {
     await kv.set(`recent_messages:${chatId}`, messages, { ex: 300 });
     res.status(200).json(messages);
   } catch (error) {
+    console.error('Failed to fetch recent messages:', error);
     res.status(500).json({ error: 'Failed to fetch recent messages' });
   }
 }
@@ -55,7 +72,14 @@ export async function getRecentMessages(req, res) {
 export async function sendFile(req, res) {
   const { phoneNumber, fileUrl, caption } = req.body;
   try {
+    if (!phoneNumber) {
+      console.error('Phone number is missing');
+      return res.status(400).json({ error: 'Phone number is required' });
+    }
+
     const chatId = `${phoneNumber.replace(/\D/g, '').replace(/^0/, '972')}@c.us`;
+    console.log('Sending file to:', chatId);
+
     const response = await axios.post(`${GREENAPI_BASE_URL}/sendFileByUrl/${GREENAPI_APITOKENINSTANCE}`, {
       chatId,
       urlFile: fileUrl,
@@ -64,6 +88,7 @@ export async function sendFile(req, res) {
     });
     res.status(200).json({ success: true, messageId: response.data.idMessage });
   } catch (error) {
+    console.error('Failed to send file:', error);
     res.status(500).json({ error: 'Failed to send file' });
   }
 }
@@ -72,10 +97,18 @@ export async function sendFile(req, res) {
 export async function getChatHistory(req, res) {
   const { phoneNumber, limit = 100 } = req.query;
   try {
+    if (!phoneNumber) {
+      console.error('Phone number is missing');
+      return res.status(400).json({ error: 'Phone number is required' });
+    }
+
     const chatId = `${phoneNumber.replace(/\D/g, '').replace(/^0/, '972')}@c.us`;
+    console.log('Fetching chat history for:', chatId);
+
     const cachedHistory = await kv.get(`chat_history:${chatId}`);
     
     if (cachedHistory) {
+      console.log('Returning cached chat history');
       return res.status(200).json(cachedHistory);
     }
 
@@ -95,6 +128,7 @@ export async function getChatHistory(req, res) {
     await kv.set(`chat_history:${chatId}`, history, { ex: 600 });
     res.status(200).json(history);
   } catch (error) {
+    console.error('Failed to fetch chat history:', error);
     res.status(500).json({ error: 'Failed to fetch chat history' });
   }
 }
