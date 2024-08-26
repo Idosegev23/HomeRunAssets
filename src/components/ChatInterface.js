@@ -1,10 +1,10 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Search, Send, Image, Video, File, Mic, MapPin, Trash2 } from 'lucide-react';
+import { Search, Send, Image, Video, File } from 'lucide-react';
 import axios from 'axios';
 
 const API_BASE_URL = process.env.REACT_APP_API_BASE_URL || 'https://your-server-url.com/api';
 
-const WhatsAppStyleChat = () => {
+const ChatInterface = () => {
   const [chats, setChats] = useState([]);
   const [selectedChat, setSelectedChat] = useState(null);
   const [messages, setMessages] = useState([]);
@@ -12,10 +12,8 @@ const WhatsAppStyleChat = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [searchQuery, setSearchQuery] = useState('');
-  const [isRecording, setIsRecording] = useState(false);
   const chatContainerRef = useRef(null);
   const fileInputRef = useRef(null);
-  const audioRef = useRef(null);
 
   useEffect(() => {
     fetchChats();
@@ -99,22 +97,30 @@ const WhatsAppStyleChat = () => {
   const handleFileUpload = async (event) => {
     const file = event.target.files[0];
     if (file && selectedChat) {
-      const formData = new FormData();
-      formData.append('file', file);
-      formData.append('phoneNumber', selectedChat.phoneNumber);
-
       try {
         setLoading(true);
         setError(null);
-        const response = await axios.post(`${API_BASE_URL}/chat.mjs?sendFile`, formData, {
-          headers: { 'Content-Type': 'multipart/form-data' }
+        const formData = new FormData();
+        formData.append('file', file);
+        
+        // Upload file to your server or a file hosting service
+        // This step depends on your backend implementation
+        const uploadResponse = await axios.post(`${API_BASE_URL}/uploadFile`, formData);
+        const fileUrl = uploadResponse.data.fileUrl;
+
+        // Send file using Green API
+        const response = await axios.post(`${API_BASE_URL}/chat.mjs?sendFile`, {
+          phoneNumber: selectedChat.phoneNumber,
+          fileUrl: fileUrl,
+          caption: file.name
         });
+
         setMessages(prevMessages => [...prevMessages, {
           id: response.data.messageId,
           sender: 'Me',
           text: `File: ${file.name}`,
           timestamp: Math.floor(Date.now() / 1000),
-          fileUrl: response.data.fileUrl
+          fileUrl: fileUrl
         }]);
       } catch (error) {
         handleApiError(error);
@@ -123,28 +129,6 @@ const WhatsAppStyleChat = () => {
       }
     }
   };
-
-  const handleSearchMessages = async () => {
-    if (selectedChat && searchQuery.trim()) {
-      try {
-        setLoading(true);
-        setError(null);
-        const response = await axios.get(`${API_BASE_URL}/chat.mjs?getChatHistory`, {
-          params: {
-            phoneNumber: selectedChat.phoneNumber,
-            query: searchQuery
-          }
-        });
-        setMessages(response.data);
-      } catch (error) {
-        handleApiError(error);
-      } finally {
-        setLoading(false);
-      }
-    }
-  };
-
-  // הפונקציות handleVoiceRecording, handleSendLocation, ו-handleDeleteMessage נשארות כפי שהן
 
   return (
     <div className="flex h-screen bg-gray-100" dir="rtl">
@@ -186,16 +170,6 @@ const WhatsAppStyleChat = () => {
               <h2 className="font-semibold">{selectedChat.customerName}</h2>
               <p className="text-sm text-gray-600">{selectedChat.phoneNumber}</p>
             </div>
-            <div className="p-2">
-              <input
-                type="text"
-                placeholder="חיפוש בהיסטוריית הצ'אט"
-                className="w-full p-2 rounded border"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                onKeyPress={(e) => e.key === 'Enter' && handleSearchMessages()}
-              />
-            </div>
             <div 
               ref={chatContainerRef}
               className="flex-1 overflow-y-auto p-4"
@@ -215,14 +189,6 @@ const WhatsAppStyleChat = () => {
                     }`}
                   >
                     {message.text}
-                    {message.sender === 'Me' && (
-                      <button
-                        onClick={() => handleDeleteMessage(message.id)}
-                        className="ml-2 text-red-500"
-                      >
-                        <Trash2 size={16} />
-                      </button>
-                    )}
                   </div>
                   <div className="text-xs text-gray-500 mt-1">
                     {new Date(message.timestamp * 1000).toLocaleString('he-IL')}
@@ -270,18 +236,6 @@ const WhatsAppStyleChat = () => {
                 >
                   <Image size={24} />
                 </button>
-                <button
-                  onClick={handleVoiceRecording}
-                  className={`mr-2 ${isRecording ? 'text-red-500' : ''}`}
-                >
-                  <Mic size={24} />
-                </button>
-                <button
-                  onClick={handleSendLocation}
-                  className="mr-2"
-                >
-                  <MapPin size={24} />
-                </button>
               </div>
             </div>
           </>
@@ -307,4 +261,4 @@ const WhatsAppStyleChat = () => {
   );
 };
 
-export default WhatsAppStyleChat;
+export default ChatInterface;
