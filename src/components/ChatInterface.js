@@ -120,7 +120,7 @@ const ChatInterface = () => {
           {chats.map((chat) => (
             <li
               key={chat.idMessage}
-              className={`p-4 hover:bg-gray-100 cursor-pointer ${selectedChat?.phoneNumber === chat.senderData.sender ? 'bg-gray-200' : ''}`}
+              className={`p-4 hover:bg-gray-100 cursor-pointer ${selectedChat?.phoneNumber === chat.senderData?.sender ? 'bg-gray-200' : ''}`}
               onClick={() => setSelectedChat(chat)}
             >
               <div className="font-semibold">{chat.senderData?.senderName || chat.senderData?.sender}</div>
@@ -143,7 +143,7 @@ const ChatInterface = () => {
               {messages.map((message) => (
                 <div key={message.id} className={`mb-4 ${message.sender === 'Me' ? 'text-left' : 'text-right'}`}>
                   <div className={`inline-block p-2 rounded-lg ${message.sender === 'Me' ? 'bg-green-500 text-white' : 'bg-white text-black'}`}>
-                    {message.text}
+                    {message.text || 'No text'}
                   </div>
                   <div className="text-xs text-gray-500 mt-1">{new Date(message.timestamp * 1000).toLocaleString('he-IL')}</div>
                 </div>
