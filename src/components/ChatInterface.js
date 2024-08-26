@@ -3,26 +3,24 @@ import { Search, Send, Image, Video, File } from 'lucide-react';
 import axios from 'axios';
 
 const WhatsAppStyleChat = () => {
-  const [customers, setCustomers] = useState([]);
-  const [selectedCustomer, setSelectedCustomer] = useState(null);
+  const [chats, setChats] = useState([]);
+  const [selectedChat, setSelectedChat] = useState(null);
   const [messages, setMessages] = useState([]);
   const [inputMessage, setInputMessage] = useState('');
-  const [relevantProperties, setRelevantProperties] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const chatContainerRef = useRef(null);
   const fileInputRef = useRef(null);
 
   useEffect(() => {
-    fetchCustomers();
+    fetchChats();
   }, []);
 
   useEffect(() => {
-    if (selectedCustomer) {
-      fetchMessages(selectedCustomer.phoneNumber);
-      fetchRelevantProperties(selectedCustomer.id);
+    if (selectedChat) {
+      fetchMessages(selectedChat.phoneNumber);
     }
-  }, [selectedCustomer]);
+  }, [selectedChat]);
 
   useEffect(() => {
     if (chatContainerRef.current) {
@@ -30,14 +28,14 @@ const WhatsAppStyleChat = () => {
     }
   }, [messages]);
 
-  const fetchCustomers = async () => {
+  const fetchChats = async () => {
     try {
       setLoading(true);
       const response = await axios.get('/api/chats');
-      setCustomers(response.data);
+      setChats(response.data);
     } catch (error) {
-      setError('Failed to fetch customers. Please try again.');
-      console.error('Error fetching customers:', error);
+      setError('Failed to fetch chats. Please try again.');
+      console.error('Error fetching chats:', error);
     } finally {
       setLoading(false);
     }
@@ -56,25 +54,13 @@ const WhatsAppStyleChat = () => {
     }
   };
 
-  const fetchRelevantProperties = async (customerId) => {
-    try {
-      setLoading(true);
-      const response = await axios.get(`/api/properties?customerId=${customerId}`);
-      setRelevantProperties(response.data);
-    } catch (error) {
-      setError('Failed to fetch relevant properties. Please try again.');
-      console.error('Error fetching relevant properties:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
-
   const handleSendMessage = async () => {
-    if (inputMessage.trim() && selectedCustomer) {
+    if (inputMessage.trim() && selectedChat) {
       try {
         setLoading(true);
+        // Note: You'll need to implement this API endpoint
         const response = await axios.post('/api/sendMessage', {
-          phoneNumber: selectedCustomer.phoneNumber,
+          phoneNumber: selectedChat.phoneNumber,
           message: inputMessage
         });
         setMessages([...messages, response.data]);
@@ -90,13 +76,14 @@ const WhatsAppStyleChat = () => {
 
   const handleFileUpload = async (event) => {
     const file = event.target.files[0];
-    if (file && selectedCustomer) {
+    if (file && selectedChat) {
       const formData = new FormData();
       formData.append('file', file);
-      formData.append('phoneNumber', selectedCustomer.phoneNumber);
+      formData.append('phoneNumber', selectedChat.phoneNumber);
 
       try {
         setLoading(true);
+        // Note: You'll need to implement this API endpoint
         const response = await axios.post('/api/uploadFile', formData, {
           headers: { 'Content-Type': 'multipart/form-data' }
         });
@@ -110,36 +97,32 @@ const WhatsAppStyleChat = () => {
     }
   };
 
-  const handleSendProperty = (property) => {
-    const propertyText = `נכס: ${property.address}\nמחיר: ${property.price}`;
-    setInputMessage(propertyText);
-  };
-
   return (
     <div className="flex h-screen bg-gray-100" dir="rtl">
-      {/* Customer List */}
+      {/* Chat List */}
       <div className="w-1/4 bg-white border-l">
         <div className="p-4">
           <div className="relative">
             <input
               type="text"
-              placeholder="חיפוש לקוחות"
+              placeholder="חיפוש צ'אטים"
               className="w-full p-2 pr-8 rounded border"
             />
             <Search className="absolute right-2 top-2 text-gray-400" size={20} />
           </div>
         </div>
         <ul className="overflow-y-auto h-[calc(100vh-80px)]">
-          {customers.map((customer) => (
+          {chats.map((chat) => (
             <li
-              key={customer.phoneNumber}
+              key={chat.phoneNumber}
               className={`p-4 hover:bg-gray-100 cursor-pointer ${
-                selectedCustomer?.phoneNumber === customer.phoneNumber ? 'bg-gray-200' : ''
+                selectedChat?.phoneNumber === chat.phoneNumber ? 'bg-gray-200' : ''
               }`}
-              onClick={() => setSelectedCustomer(customer)}
+              onClick={() => setSelectedChat(chat)}
             >
-              <div className="font-semibold">{customer.customerName}</div>
-              <div className="text-sm text-gray-600">{customer.phoneNumber}</div>
+              <div className="font-semibold">{chat.customerName}</div>
+              <div className="text-sm text-gray-600">{chat.phoneNumber}</div>
+              <div className="text-xs text-gray-500">{chat.lastMessage}</div>
             </li>
           ))}
         </ul>
@@ -147,11 +130,11 @@ const WhatsAppStyleChat = () => {
 
       {/* Chat Window */}
       <div className="flex-1 flex flex-col">
-        {selectedCustomer ? (
+        {selectedChat ? (
           <>
             <div className="bg-gray-200 p-4">
-              <h2 className="font-semibold">{selectedCustomer.customerName}</h2>
-              <p className="text-sm text-gray-600">{selectedCustomer.phoneNumber}</p>
+              <h2 className="font-semibold">{selectedChat.customerName}</h2>
+              <p className="text-sm text-gray-600">{selectedChat.phoneNumber}</p>
             </div>
             <div 
               ref={chatContainerRef}
@@ -224,38 +207,8 @@ const WhatsAppStyleChat = () => {
           </>
         ) : (
           <div className="flex-1 flex items-center justify-center text-gray-500">
-            בחר לקוח כדי להתחיל בשיחה
+            בחר צ'אט כדי להתחיל בשיחה
           </div>
-        )}
-      </div>
-
-      {/* Customer Details and Properties */}
-      <div className="w-1/4 bg-white border-r">
-        {selectedCustomer && (
-          <>
-            <div className="p-4 border-b">
-              <h2 className="font-semibold">פרטי לקוח</h2>
-              <p>שם: {selectedCustomer.customerName}</p>
-              <p>טלפון: {selectedCustomer.phoneNumber}</p>
-            </div>
-            <div className="p-4">
-              <h2 className="font-semibold mb-2">נכסים רלוונטיים</h2>
-              <ul>
-                {relevantProperties.map((property) => (
-                  <li key={property.id} className="mb-2">
-                    <div>{property.address}</div>
-                    <div>{property.price}</div>
-                    <button
-                      onClick={() => handleSendProperty(property)}
-                      className="mt-1 bg-blue-500 text-white px-2 py-1 rounded text-sm"
-                    >
-                      שלח ללקוח
-                    </button>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          </>
         )}
       </div>
 
