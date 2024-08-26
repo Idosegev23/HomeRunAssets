@@ -1,11 +1,18 @@
-const express = require('express');
-const axios = require('axios');
-const Airtable = require('airtable');
-const multer = require('multer');
-const path = require('path');
-const cors = require('cors');
-const fs = require('fs');
-require('dotenv').config();
+import express from 'express';
+import axios from 'axios';
+import Airtable from 'airtable';
+import multer from 'multer';
+import path from 'path';
+import cors from 'cors';
+import { fileURLToPath } from 'url';
+import { dirname } from 'path';
+import dotenv from 'dotenv';
+import fs from 'fs';
+
+dotenv.config();
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
 
 const app = express();
 app.use(express.json());
@@ -144,7 +151,6 @@ app.post('/api/uploadFile', upload.single('file'), async (req, res) => {
     const file = req.file;
     const chatId = `${phoneNumber.replace(/\D/g, '').replace(/^0/, '972')}@c.us`;
 
-    // העלאת הקובץ ל-GreenAPI
     const formData = new FormData();
     formData.append('chatId', chatId);
     formData.append('file', fs.createReadStream(file.path));
@@ -153,7 +159,6 @@ app.post('/api/uploadFile', upload.single('file'), async (req, res) => {
       headers: formData.getHeaders()
     });
 
-    // מחיקת הקובץ המקומי לאחר ההעלאה
     fs.unlinkSync(file.path);
 
     res.json({
@@ -187,14 +192,11 @@ app.get('/api/customerInfo', async (req, res) => {
   }
 });
 
-// היסטוריית צ'אט
-
 app.get('/api/chatHistory', async (req, res) => {
   try {
     const { phoneNumber, startDate, endDate, limit = 100 } = req.query;
     const chatId = `${phoneNumber.replace(/\D/g, '').replace(/^0/, '972')}@c.us`;
 
-    // המרת תאריכים לטיימסטמפ
     const startTimestamp = startDate ? new Date(startDate).getTime() / 1000 : 0;
     const endTimestamp = endDate ? new Date(endDate).getTime() / 1000 : Math.floor(Date.now() / 1000);
 
@@ -221,14 +223,11 @@ app.get('/api/chatHistory', async (req, res) => {
   }
 });
 
-// חיפוש בהיסטוריית הצ'אט
-
 app.get('/api/searchChatHistory', async (req, res) => {
   try {
     const { phoneNumber, query, startDate, endDate, limit = 100 } = req.query;
     const chatId = `${phoneNumber.replace(/\D/g, '').replace(/^0/, '972')}@c.us`;
 
-    // המרת תאריכים לטיימסטמפ
     const startTimestamp = startDate ? new Date(startDate).getTime() / 1000 : 0;
     const endTimestamp = endDate ? new Date(endDate).getTime() / 1000 : Math.floor(Date.now() / 1000);
 
@@ -259,14 +258,205 @@ app.get('/api/searchChatHistory', async (req, res) => {
   }
 });
 
-// ייצוא היסטוריית צ'אט
+app.post('/api/createGroup', async (req, res) => {
+  try {
+    const { groupName, participants } = req.body;
+    const response = await axios.post(`${GREENAPI_BASE_URL}/createGroup/${GREENAPI_APITOKENINSTANCE}`, {
+      groupName: groupName,
+      chatIds: participants
+    });
+    res.json(response.data);
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to create group', details: error.message });
+  }
+});
+
+app.post('/api/addGroupParticipant', async (req, res) => {
+  try {
+    const { groupId, participantNumber } = req.body;
+    const response = await axios.post(`${GREENAPI_BASE_URL}/addGroupParticipant/${GREENAPI_APITOKENINSTANCE}`, {
+      groupId: groupId,
+      participantChatId: `${participantNumber.replace(/\D/g, '').replace(/^0/, '972')}@c.us`
+    });
+    res.json(response.data);
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to add group participant', details: error.message });
+  }
+});
+
+app.post('/api/removeGroupParticipant', async (req, res) => {
+  try {
+    const { groupId, participantNumber } = req.body;
+    const response = await axios.post(`${GREENAPI_BASE_URL}/removeGroupParticipant/${GREENAPI_APITOKENINSTANCE}`, {
+      groupId: groupId,
+      participantChatId: `${participantNumber.replace(/\D/g, '').replace(/^0/, '972')}@c.us`
+    });
+    res.json(response.data);
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to remove group participant', details: error.message });
+  }
+});
+
+app.get('/api/profilePicture', async (req, res) => {
+  try {
+    const { phoneNumber } = req.query;
+    const chatId = `${phoneNumber.replace(/\D/g, '').replace(/^0/, '972')}@c.us`;
+    const response = await axios.post(`${GREENAPI_BASE_URL}/getAvatar/${GREENAPI_APITOKENINSTANCE}`, {
+      chatId: chatId
+    });
+    res.json({ avatarUrl: response.data.urlAvatar });
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to fetch profile picture', details: error.message });
+  }
+});
+
+app.get('/api/accountStatus', async (req, res) => {
+  try {
+    const response = await axios.get(`${GREENAPI_BASE_URL}/getStateInstance/${GREENAPI_APITOKENINSTANCE}`);
+    res.json(response.data);
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to fetch account status', details: error.message });
+  }
+});
+
+app.post('/api/sendVoiceMessage', upload.single('audio'), async (req, res) => {
+  try {
+    const { phoneNumber } = req.body;
+    const file = req.file;
+    const chatId = `${phoneNumber.replace(/\D/g, '').replace(/^0/, '972')}@c.us`;
+
+    const formData = new FormData();
+    formData.append('chatId', chatId);
+    formData.append('file', fs.createReadStream(file.path));
+    
+    const response = await axios.post(`${GREENAPI_BASE_URL}/sendFileByUpload/${GREENAPI_APITOKENINSTANCE}`, formData, {
+      headers: formData.getHeaders()
+    });
+
+    fs.unlinkSync(file.path);
+
+    res.json({
+      id: response.data.idMessage,
+      sender: 'Me',
+      text: 'Voice message',
+      timestamp: Math.floor(Date.now() / 1000),
+      phoneNumber: phoneNumber,
+      fileUrl: response.data.fileUrl
+    });
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to send voice message', details: error.message });
+  }
+});
+
+app.get('/api/userStatus', async (req, res) => {
+  try {
+    const { phoneNumber } = req.query;
+    const chatId = `${phoneNumber.replace(/\D/g, '').replace(/^0/, '972')}@c.us`;
+    const response = await axios.post(`${GREENAPI_BASE_URL}/getContactInfo/${GREENAPI_APITOKENINSTANCE}`, {
+      chatId: chatId
+    });
+    res.json({
+      phoneNumber: phoneNumber,
+      status: response.data.status,
+      lastSeen: response.data.lastSeen
+    });
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to fetch user status', details: error.message });
+  }
+});
+
+app.post('/api/deleteMessage', async (req, res) => {
+  try {
+    const { chatId, messageId } = req.body;
+    const response = await axios.post(`${GREENAPI_BASE_URL}/deleteMessage/${GREENAPI_APITOKENINSTANCE}`, {
+      chatId: chatId,
+      idMessage: messageId
+    });
+    res.json({ success: true });
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to delete message', details: error.message });
+  }
+});
+
+app.post('/api/sendLocation', async (req, res) => {
+  try {
+    const { phoneNumber, latitude, longitude, name, address } = req.body;
+    const chatId = `${phoneNumber.replace(/\D/g, '').replace(/^0/, '972')}@c.us`;
+    const response = await axios.post(`${GREENAPI_BASE_URL}/sendLocation/${GREENAPI_APITOKENINSTANCE}`, {
+      chatId: chatId,
+      latitude: latitude,
+      longitude: longitude,
+      nameLocation: name,
+      address: address
+    });
+    res.json({
+      id: response.data.idMessage,
+      sender: 'Me',
+      text: 'Location',
+      timestamp: Math.floor(Date.now() / 1000),
+      phoneNumber: phoneNumber,
+      location: { latitude, longitude, name, address }
+    });
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to send location', details: error.message });
+  }
+});
+
+app.post('/api/setWebhook', async (req, res) => {
+  try {
+    const { url } = req.body;
+    const response = await axios.post(`${GREENAPI_BASE_URL}/setWebhook/${GREENAPI_APITOKENINSTANCE}`, {
+      webhookUrl: url
+    });
+    res.json(response.data);
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to set webhook', details: error.message });
+  }
+});
+
+app.post('/webhook', (req, res) => {
+  const update = req.body;
+  console.log('Received update:', update);
+  // כאן תוכל להוסיף לוגיקה לטיפול בעדכונים שמתקבלים
+  res.sendStatus(200);
+});
+
+app.post('/api/sendButtonMessage', async (req, res) => {
+  try {
+    const { phoneNumber, message, buttons } = req.body;
+    const chatId = `${phoneNumber.replace(/\D/g, '').replace(/^0/, '972')}@c.us`;
+    const response = await axios.post(`${GREENAPI_BASE_URL}/sendButtons/${GREENAPI_APITOKENINSTANCE}`, {
+      chatId: chatId,
+      message: message,
+      buttons: buttons
+    });
+    res.json({
+      id: response.data.idMessage,
+      sender: 'Me',
+      text: message,
+      timestamp: Math.floor(Date.now() / 1000),
+      phoneNumber: phoneNumber,
+      buttons: buttons
+    });
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to send button message', details: error.message });
+  }
+});
+
+app.get('/api/usage', async (req, res) => {
+  try {
+    const response = await axios.get(`${GREENAPI_BASE_URL}/getStatistics/${GREENAPI_APITOKENINSTANCE}`);
+    res.json(response.data);
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to fetch usage statistics', details: error.message });
+  }
+});
 
 app.get('/api/exportChatHistory', async (req, res) => {
   try {
     const { phoneNumber, format = 'json', startDate, endDate } = req.query;
     const chatId = `${phoneNumber.replace(/\D/g, '').replace(/^0/, '972')}@c.us`;
 
-    // המרת תאריכים לטיימסטמפ
     const startTimestamp = startDate ? new Date(startDate).getTime() / 1000 : 0;
     const endTimestamp = endDate ? new Date(endDate).getTime() / 1000 : Math.floor(Date.now() / 1000);
 
@@ -302,273 +492,9 @@ app.get('/api/exportChatHistory', async (req, res) => {
   }
 });
 
-// ניהול סטטוס של הודעות
-
-app.post('/api/messageStatus', async (req, res) => {
-  try {
-    const { messageId, status } = req.body;
-    // כאן תוכל להוסיף לוגיקה לעדכון סטטוס ההודעה במסד הנתונים שלך
-    res.json({ success: true });
-  } catch (error) {
-    res.status(500).json({ error: 'Failed to update message status', details: error.message });
-  }
-});
-
-// קבלת פרטי קבוצה
-
-app.get('/api/groupInfo', async (req, res) => {
-  try {
-    const { groupId } = req.query;
-    const response = await axios.post(`${GREENAPI_BASE_URL}/getGroupData/${GREENAPI_APITOKENINSTANCE}`, {
-      groupId: groupId
-    });
-    res.json(response.data);
-  } catch (error) {
-    res.status(500).json({ error: 'Failed to fetch group info', details: error.message });
-  }
-});
-
-// שליחת הודעה לקבוצה
-
-app.post('/api/sendGroupMessage', async (req, res) => {
-  try {
-    const { groupId, message } = req.body;
-    const response = await axios.post(`${GREENAPI_BASE_URL}/sendMessage/${GREENAPI_APITOKENINSTANCE}`, {
-      chatId: groupId,
-      message: message
-    });
-    res.json({
-      id: response.data.idMessage,
-      sender: 'Me',
-      text: message,
-      timestamp: Math.floor(Date.now() / 1000),
-      groupId: groupId
-    });
-} catch (error) {
-    res.status(500).json({ error: 'Failed to send group message', details: error.message });
-  }
-});
-
-// יצירת קבוצה חדשה
-
-app.post('/api/createGroup', async (req, res) => {
-  try {
-    const { groupName, participants } = req.body;
-    const response = await axios.post(`${GREENAPI_BASE_URL}/createGroup/${GREENAPI_APITOKENINSTANCE}`, {
-      groupName: groupName,
-      chatIds: participants
-    });
-    res.json(response.data);
-  } catch (error) {
-    res.status(500).json({ error: 'Failed to create group', details: error.message });
-  }
-});
-
-// הוספת משתתף לקבוצה
-
-app.post('/api/addGroupParticipant', async (req, res) => {
-  try {
-    const { groupId, participantNumber } = req.body;
-    const response = await axios.post(`${GREENAPI_BASE_URL}/addGroupParticipant/${GREENAPI_APITOKENINSTANCE}`, {
-      groupId: groupId,
-      participantChatId: `${participantNumber.replace(/\D/g, '').replace(/^0/, '972')}@c.us`
-    });
-    res.json(response.data);
-  } catch (error) {
-    res.status(500).json({ error: 'Failed to add group participant', details: error.message });
-  }
-});
-
-// הסרת משתתף מקבוצה
-
-app.post('/api/removeGroupParticipant', async (req, res) => {
-  try {
-    const { groupId, participantNumber } = req.body;
-    const response = await axios.post(`${GREENAPI_BASE_URL}/removeGroupParticipant/${GREENAPI_APITOKENINSTANCE}`, {
-      groupId: groupId,
-      participantChatId: `${participantNumber.replace(/\D/g, '').replace(/^0/, '972')}@c.us`
-    });
-    res.json(response.data);
-  } catch (error) {
-    res.status(500).json({ error: 'Failed to remove group participant', details: error.message });
-  }
-});
-
-// קבלת תמונת פרופיל
-
-app.get('/api/profilePicture', async (req, res) => {
-  try {
-    const { phoneNumber } = req.query;
-    const chatId = `${phoneNumber.replace(/\D/g, '').replace(/^0/, '972')}@c.us`;
-    const response = await axios.post(`${GREENAPI_BASE_URL}/getAvatar/${GREENAPI_APITOKENINSTANCE}`, {
-      chatId: chatId
-    });
-    res.json({ avatarUrl: response.data.urlAvatar });
-  } catch (error) {
-    res.status(500).json({ error: 'Failed to fetch profile picture', details: error.message });
-  }
-});
-
-// בדיקת סטטוס חשבון
-
-app.get('/api/accountStatus', async (req, res) => {
-  try {
-    const response = await axios.get(`${GREENAPI_BASE_URL}/getStateInstance/${GREENAPI_APITOKENINSTANCE}`);
-    res.json(response.data);
-  } catch (error) {
-    res.status(500).json({ error: 'Failed to fetch account status', details: error.message });
-  }
-});
-
-// שליחת הודעה עם כפתורים
-
-app.post('/api/sendButtonMessage', async (req, res) => {
-  try {
-    const { phoneNumber, message, buttons } = req.body;
-    const chatId = `${phoneNumber.replace(/\D/g, '').replace(/^0/, '972')}@c.us`;
-    const response = await axios.post(`${GREENAPI_BASE_URL}/sendButtons/${GREENAPI_APITOKENINSTANCE}`, {
-      chatId: chatId,
-      message: message,
-      buttons: buttons
-    });
-    res.json({
-      id: response.data.idMessage,
-      sender: 'Me',
-      text: message,
-      timestamp: Math.floor(Date.now() / 1000),
-      phoneNumber: phoneNumber,
-      buttons: buttons
-    });
-  } catch (error) {
-    res.status(500).json({ error: 'Failed to send button message', details: error.message });
-  }
-});
-
-// קבלת סטטיסטיקות שימוש
-
-app.get('/api/usage', async (req, res) => {
-  try {
-    const response = await axios.get(`${GREENAPI_BASE_URL}/getStatistics/${GREENAPI_APITOKENINSTANCE}`);
-    res.json(response.data);
-  } catch (error) {
-    res.status(500).json({ error: 'Failed to fetch usage statistics', details: error.message });
-  }
-});
-
-// שליחת הודעה קולית
-
-app.post('/api/sendVoiceMessage', upload.single('audio'), async (req, res) => {
-  try {
-    const { phoneNumber } = req.body;
-    const file = req.file;
-    const chatId = `${phoneNumber.replace(/\D/g, '').replace(/^0/, '972')}@c.us`;
-
-    const formData = new FormData();
-    formData.append('chatId', chatId);
-    formData.append('file', fs.createReadStream(file.path));
-    
-    const response = await axios.post(`${GREENAPI_BASE_URL}/sendFileByUpload/${GREENAPI_APITOKENINSTANCE}`, formData, {
-      headers: formData.getHeaders()
-    });
-
-    fs.unlinkSync(file.path);
-
-    res.json({
-      id: response.data.idMessage,
-      sender: 'Me',
-      text: 'Voice message',
-      timestamp: Math.floor(Date.now() / 1000),
-      phoneNumber: phoneNumber,
-      fileUrl: response.data.fileUrl
-    });
-  } catch (error) {
-    res.status(500).json({ error: 'Failed to send voice message', details: error.message });
-  }
-});
-
-// קבלת מידע על סטטוס של משתמש
-
-app.get('/api/userStatus', async (req, res) => {
-  try {
-    const { phoneNumber } = req.query;
-    const chatId = `${phoneNumber.replace(/\D/g, '').replace(/^0/, '972')}@c.us`;
-    const response = await axios.post(`${GREENAPI_BASE_URL}/getContactInfo/${GREENAPI_APITOKENINSTANCE}`, {
-      chatId: chatId
-    });
-    res.json({
-      phoneNumber: phoneNumber,
-      status: response.data.status,
-      lastSeen: response.data.lastSeen
-    });
-  } catch (error) {
-    res.status(500).json({ error: 'Failed to fetch user status', details: error.message });
-  }
-});
-
-// מחיקת הודעה
-
-app.post('/api/deleteMessage', async (req, res) => {
-  try {
-    const { chatId, messageId } = req.body;
-    const response = await axios.post(`${GREENAPI_BASE_URL}/deleteMessage/${GREENAPI_APITOKENINSTANCE}`, {
-      chatId: chatId,
-      idMessage: messageId
-    });
-    res.json({ success: true });
-  } catch (error) {
-    res.status(500).json({ error: 'Failed to delete message', details: error.message });
-  }
-});
-
-// שליחת מיקום
-
-app.post('/api/sendLocation', async (req, res) => {
-  try {
-    const { phoneNumber, latitude, longitude, name, address } = req.body;
-    const chatId = `${phoneNumber.replace(/\D/g, '').replace(/^0/, '972')}@c.us`;
-    const response = await axios.post(`${GREENAPI_BASE_URL}/sendLocation/${GREENAPI_APITOKENINSTANCE}`, {
-      chatId: chatId,
-      latitude: latitude,
-      longitude: longitude,
-      nameLocation: name,
-      address: address
-    });
-    res.json({
-      id: response.data.idMessage,
-      sender: 'Me',
-      text: 'Location',
-      timestamp: Math.floor(Date.now() / 1000),
-      phoneNumber: phoneNumber,
-      location: { latitude, longitude, name, address }
-    });
-  } catch (error) {
-    res.status(500).json({ error: 'Failed to send location', details: error.message });
-  }
-});
-
-// הגדרת webhook לקבלת עדכונים בזמן אמת
-
-app.post('/api/setWebhook', async (req, res) => {
-  try {
-    const { url } = req.body;
-    const response = await axios.post(`${GREENAPI_BASE_URL}/setWebhook/${GREENAPI_APITOKENINSTANCE}`, {
-      webhookUrl: url
-    });
-    res.json(response.data);
-  } catch (error) {
-    res.status(500).json({ error: 'Failed to set webhook', details: error.message });
-  }
-});
-
-// קבלת עדכונים מהwebhook
-app.post('/webhook', (req, res) => {
-  const update = req.body;
-  console.log('Received update:', update);
-  // כאן תוכל להוסיף לוגיקה לטיפול בעדכונים שמתקבלים
-  res.sendStatus(200);
-});
-
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
   console.log(`Server is running on port ${PORT}`);
 });
+
+export default app;
