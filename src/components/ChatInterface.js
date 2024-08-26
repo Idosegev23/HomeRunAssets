@@ -2,8 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Search, Send, Image, Video, File } from 'lucide-react';
 import axios from 'axios';
 
-// הגדר את כתובת הבסיס של ה-API
-const API_BASE_URL = process.env.REACT_APP_API_BASE_URL || '/api';
+const API_BASE_URL = process.env.REACT_APP_API_BASE_URL || 'https://home-run-assets.vercel.app/api';
 
 const WhatsAppStyleChat = () => {
   const [chats, setChats] = useState([]);
@@ -31,14 +30,25 @@ const WhatsAppStyleChat = () => {
     }
   }, [messages]);
 
+  const handleApiError = (error) => {
+    console.error('API Error:', error);
+    if (error.response) {
+      setError(`Error ${error.response.status}: ${error.response.data.error || 'Unknown error'}`);
+    } else if (error.request) {
+      setError('No response received from the server. Please check your network connection.');
+    } else {
+      setError(`Error: ${error.message}`);
+    }
+  };
+
   const fetchChats = async () => {
     try {
       setLoading(true);
-      const response = await axios.get(`${API_BASE_URL}/chats`);
+      setError(null);
+      const response = await axios.get(`${API_BASE_URL}/getChats`);
       setChats(response.data);
     } catch (error) {
-      console.error('Error fetching chats:', error);
-      setError(error.response?.data?.error || 'Failed to fetch chats. Please try again.');
+      handleApiError(error);
     } finally {
       setLoading(false);
     }
@@ -47,13 +57,13 @@ const WhatsAppStyleChat = () => {
   const fetchMessages = async (phoneNumber) => {
     try {
       setLoading(true);
+      setError(null);
       const response = await axios.get(`${API_BASE_URL}/messages`, {
         params: { phoneNumber }
       });
       setMessages(response.data);
     } catch (error) {
-      console.error('Error fetching messages:', error);
-      setError(error.response?.data?.error || 'Failed to fetch messages. Please try again.');
+      handleApiError(error);
     } finally {
       setLoading(false);
     }
@@ -63,15 +73,15 @@ const WhatsAppStyleChat = () => {
     if (inputMessage.trim() && selectedChat) {
       try {
         setLoading(true);
+        setError(null);
         const response = await axios.post(`${API_BASE_URL}/sendMessage`, {
           phoneNumber: selectedChat.phoneNumber,
           message: inputMessage
         });
-        setMessages([...messages, response.data]);
+        setMessages(prevMessages => [...prevMessages, response.data]);
         setInputMessage('');
       } catch (error) {
-        console.error('Error sending message:', error);
-        setError(error.response?.data?.error || 'Failed to send message. Please try again.');
+        handleApiError(error);
       } finally {
         setLoading(false);
       }
@@ -87,13 +97,13 @@ const WhatsAppStyleChat = () => {
 
       try {
         setLoading(true);
+        setError(null);
         const response = await axios.post(`${API_BASE_URL}/uploadFile`, formData, {
           headers: { 'Content-Type': 'multipart/form-data' }
         });
-        setMessages([...messages, response.data]);
+        setMessages(prevMessages => [...prevMessages, response.data]);
       } catch (error) {
-        console.error('Error uploading file:', error);
-        setError(error.response?.data?.error || 'Failed to upload file. Please try again.');
+        handleApiError(error);
       } finally {
         setLoading(false);
       }
