@@ -20,7 +20,7 @@ const ChatInterface = () => {
 
   useEffect(() => {
     if (selectedChat) {
-      fetchMessages(selectedChat.phoneNumber);
+      fetchMessages(selectedChat.senderData.phoneNumber);
     }
   }, [selectedChat]);
 
@@ -40,9 +40,8 @@ const ChatInterface = () => {
       setLoading(true);
       const response = await axios.get(`${API_BASE_URL}/getLastIncomingMessages`);
       const formattedChats = response.data.map(chat => {
-        if (chat.senderId) {
-          const phoneNumber = chat.senderId.replace(/^\+?972/, '0').replace('@c.us', '');
-          console.log('Formatted phone number:', phoneNumber);
+        if (chat.senderData && chat.senderData.sender) {
+          const phoneNumber = chat.senderData.sender.replace(/^\+?972/, '0').replace('@c.us', '');
           return {
             ...chat,
             senderData: {
@@ -62,9 +61,14 @@ const ChatInterface = () => {
   };
 
   const fetchMessages = async (phoneNumber) => {
+    if (!phoneNumber) {
+      console.error('Cannot fetch messages. Phone number is undefined.');
+      setError('Cannot fetch messages. Please select a valid chat.');
+      return;
+    }
+
     try {
       setLoading(true);
-      console.log('Fetching messages for:', phoneNumber);
       const response = await axios.get(`${API_BASE_URL}/getChatHistory`, { params: { phoneNumber } });
       setMessages(response.data);
     } catch (error) {
@@ -78,10 +82,9 @@ const ChatInterface = () => {
     if (!inputMessage.trim() || !selectedChat) return;
     try {
       setLoading(true);
-      console.log('Sending message to:', selectedChat.phoneNumber);
       const response = await axios.post(`${API_BASE_URL}/sendMessage`, {
-        phoneNumber: selectedChat.phoneNumber,
-        message: inputMessage
+        phoneNumber: selectedChat.senderData.phoneNumber,
+        message: inputMessage,
       });
       setMessages([...messages, { id: response.data.messageId, sender: 'Me', text: inputMessage, timestamp: Math.floor(Date.now() / 1000) }]);
       setInputMessage('');
@@ -97,19 +100,20 @@ const ChatInterface = () => {
     if (!file || !selectedChat) return;
     try {
       setLoading(true);
-      console.log('Uploading file:', file.name);
-
       const formData = new FormData();
       formData.append('file', file);
       
-      const uploadResponse = await axios.post(`${API_BASE_URL}/uploadFile`, formData);
+      const uploadResponse = await axios.post(`${API_BASE_URL}/uploadFile`, formData, {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+        },
+      });
       const fileUrl = uploadResponse.data.fileUrl;
 
-      console.log('Sending file to:', selectedChat.phoneNumber);
       const response = await axios.post(`${API_BASE_URL}/sendFile`, {
-        phoneNumber: selectedChat.phoneNumber,
+        phoneNumber: selectedChat.senderData.phoneNumber,
         fileUrl,
-        caption: file.name
+        caption: file.name,
       });
 
       setMessages([...messages, { id: response.data.messageId, sender: 'Me', text: `File: ${file.name}`, timestamp: Math.floor(Date.now() / 1000) }]);
@@ -122,7 +126,7 @@ const ChatInterface = () => {
 
   return (
     <div className="flex h-screen bg-gray-100" dir="rtl">
-      {/* רשימת צ'אטים */}
+      {/* Chat List */}
       <div className="w-1/4 bg-white border-l">
         <div className="p-4">
           <div className="relative">
@@ -130,44 +134,52 @@ const ChatInterface = () => {
               type="text"
               placeholder="חיפוש צ'אטים"
               className="w-full p-2 pr-8 rounded border"
-              onChange={(e) => console.log(e.target.value)} // פונקציית חיפוש בסיסית, ניתן להרחיב לפי צורך
+              onChange={(e) => console.log(e.target.value)}
             />
             <Search className="absolute right-2 top-2 text-gray-400" size={20} />
           </div>
         </div>
         <ul className="overflow-y-auto h-[calc(100vh-80px)]">
-          {chats.map((chat) => (
-            <li
-              key={chat.idMessage}
-              className={`p-4 hover:bg-gray-100 cursor-pointer ${selectedChat?.phoneNumber === chat.senderData?.phoneNumber ? 'bg-gray-200' : ''}`}
-              onClick={() => setSelectedChat(chat)}
-            >
-              <div className="font-semibold">{chat.senderName || chat.senderData?.phoneNumber}</div>
-              <div className="text-sm text-gray-600">{chat.textMessage}</div>
-            </li>
-          ))}
+          {chats.length > 0 ? (
+            chats.map((chat) => (
+              <li
+                key={chat.idMessage}
+                className={`p-4 hover:bg-gray-100 cursor-pointer ${selectedChat?.senderData?.phoneNumber === chat.senderData?.phoneNumber ? 'bg-gray-200' : ''}`}
+                onClick={() => setSelectedChat(chat)}
+              >
+                <div className="font-semibold">{chat.senderData.senderName || chat.senderData?.phoneNumber}</div>
+                <div className="text-sm text-gray-600">{chat.textMessage}</div>
+              </li>
+            ))
+          ) : (
+            <li>No chats available</li>
+          )}
         </ul>
       </div>
 
-      {/* חלון צ'אט */}
+      {/* Chat Window */}
       <div className="flex-1 flex flex-col bg-gray-200">
         {selectedChat ? (
           <>
             <div className="bg-gray-300 p-4">
-              <h2 className="font-semibold">{selectedChat.senderName || selectedChat.senderData?.phoneNumber}</h2>
+              <h2 className="font-semibold">{selectedChat.senderData.senderName || selectedChat.senderData?.phoneNumber}</h2>
               <p className="text-sm text-gray-600">{selectedChat.senderData?.phoneNumber}</p>
             </div>
             <div ref={chatContainerRef} className="flex-1 overflow-y-auto p-4 bg-white">
-              {messages.map((message) => (
-                <div key={message.id} className={`mb-4 flex ${message.sender === 'Me' ? 'justify-end' : 'justify-start'}`}>
-                  <div className={`inline-block p-2 rounded-lg max-w-xs ${message.sender === 'Me' ? 'bg-green-500 text-white' : 'bg-gray-100 text-black'}`}>
-                    {message.text || 'No text'}
+              {messages.length > 0 ? (
+                messages.map((message) => (
+                  <div key={message.id} className={`mb-4 flex ${message.sender === 'Me' ? 'justify-end' : 'justify-start'}`}>
+                    <div className={`inline-block p-2 rounded-lg max-w-xs ${message.sender === 'Me' ? 'bg-green-500 text-white' : 'bg-gray-100 text-black'}`}>
+                      {message.text || 'No text'}
+                    </div>
+                    <div className="text-xs text-gray-500 mt-1">
+                      {new Date(message.timestamp * 1000).toLocaleString('he-IL')}
+                    </div>
                   </div>
-                  <div className="text-xs text-gray-500 mt-1">
-                    {new Date(message.timestamp * 1000).toLocaleString('he-IL')}
-                  </div>
-                </div>
-              ))}
+                ))
+              ) : (
+                <div>No messages found.</div>
+              )}
             </div>
             <div className="bg-gray-300 p-4">
               <div className="flex items-center">
