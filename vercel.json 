@@ -8,7 +8,7 @@
       }
     },
     {
-      "src": "api/**/*.js",
+      "src": "api/**/*.mjs",
       "use": "@vercel/node",
       "config": {
         "maxDuration": 60
@@ -20,7 +20,7 @@
     { "src": "/(.*)", "dest": "/" }
   ],
   "functions": {
-    "api/**/*.js": {
+    "api/**/*.mjs": {
       "memory": 1024,
       "maxDuration": 60
     }
