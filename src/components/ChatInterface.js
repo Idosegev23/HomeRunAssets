@@ -1,8 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Search, Send, Image, Video, File } from 'lucide-react';
+import { Search, Send, Image, Video, File, Mic, MapPin, Trash2 } from 'lucide-react';
 import axios from 'axios';
 
-const API_BASE_URL = process.env.REACT_APP_API_BASE_URL || 'https://home-run-assets.vercel.app/api';
+const API_BASE_URL = process.env.REACT_APP_API_BASE_URL || 'https://your-server-url.com/api';
 
 const WhatsAppStyleChat = () => {
   const [chats, setChats] = useState([]);
@@ -11,8 +11,11 @@ const WhatsAppStyleChat = () => {
   const [inputMessage, setInputMessage] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [isRecording, setIsRecording] = useState(false);
   const chatContainerRef = useRef(null);
   const fileInputRef = useRef(null);
+  const audioRef = useRef(null);
 
   useEffect(() => {
     fetchChats();
@@ -45,7 +48,7 @@ const WhatsAppStyleChat = () => {
     try {
       setLoading(true);
       setError(null);
-      const response = await axios.get(`${API_BASE_URL}/getChats`);
+      const response = await axios.get(`${API_BASE_URL}/chats`);
       setChats(response.data);
     } catch (error) {
       handleApiError(error);
@@ -110,6 +113,110 @@ const WhatsAppStyleChat = () => {
     }
   };
 
+  const handleSearchMessages = async () => {
+    if (selectedChat && searchQuery.trim()) {
+      try {
+        setLoading(true);
+        setError(null);
+        const response = await axios.get(`${API_BASE_URL}/searchChatHistory`, {
+          params: {
+            phoneNumber: selectedChat.phoneNumber,
+            query: searchQuery
+          }
+        });
+        setMessages(response.data);
+      } catch (error) {
+        handleApiError(error);
+      } finally {
+        setLoading(false);
+      }
+    }
+  };
+
+  const handleVoiceRecording = async () => {
+    if (!isRecording) {
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        audioRef.current = new MediaRecorder(stream);
+        const audioChunks = [];
+
+        audioRef.current.addEventListener("dataavailable", event => {
+          audioChunks.push(event.data);
+        });
+
+        audioRef.current.addEventListener("stop", async () => {
+          const audioBlob = new Blob(audioChunks);
+          const formData = new FormData();
+          formData.append('audio', audioBlob, 'voice_message.wav');
+          formData.append('phoneNumber', selectedChat.phoneNumber);
+
+          try {
+            const response = await axios.post(`${API_BASE_URL}/sendVoiceMessage`, formData, {
+              headers: { 'Content-Type': 'multipart/form-data' }
+            });
+            setMessages(prevMessages => [...prevMessages, response.data]);
+          } catch (error) {
+            handleApiError(error);
+          }
+        });
+
+        audioRef.current.start();
+        setIsRecording(true);
+      } catch (error) {
+        console.error('Error starting recording:', error);
+        setError('Failed to start voice recording');
+      }
+    } else {
+      audioRef.current.stop();
+      setIsRecording(false);
+    }
+  };
+
+  const handleSendLocation = async () => {
+    if (selectedChat) {
+      try {
+        setLoading(true);
+        setError(null);
+        navigator.geolocation.getCurrentPosition(async (position) => {
+          const { latitude, longitude } = position.coords;
+          const response = await axios.post(`${API_BASE_URL}/sendLocation`, {
+            phoneNumber: selectedChat.phoneNumber,
+            latitude,
+            longitude,
+            name: 'My Location',
+            address: 'Current Location'
+          });
+          setMessages(prevMessages => [...prevMessages, response.data]);
+        }, (error) => {
+          setError('Failed to get current location');
+          console.error('Geolocation error:', error);
+        });
+      } catch (error) {
+        handleApiError(error);
+      } finally {
+        setLoading(false);
+      }
+    }
+  };
+
+  const handleDeleteMessage = async (messageId) => {
+    if (selectedChat && messageId) {
+      try {
+        setLoading(true);
+        setError(null);
+        await axios.post(`${API_BASE_URL}/deleteMessage`, {
+          chatId: selectedChat.phoneNumber,
+          messageId: messageId
+        });
+        setMessages(prevMessages => prevMessages.filter(msg => msg.id !== messageId));
+      } catch (error) {
+        handleApiError(error);
+      } finally {
+        setLoading(false);
+      }
+    }
+  };
+
   return (
     <div className="flex h-screen bg-gray-100" dir="rtl">
       {/* Chat List */}
@@ -120,6 +227,7 @@ const WhatsAppStyleChat = () => {
               type="text"
               placeholder="חיפוש צ'אטים"
               className="w-full p-2 pr-8 rounded border"
+              onChange={(e) => setSearchQuery(e.target.value)}
             />
             <Search className="absolute right-2 top-2 text-gray-400" size={20} />
           </div>
@@ -149,6 +257,16 @@ const WhatsAppStyleChat = () => {
               <h2 className="font-semibold">{selectedChat.customerName}</h2>
               <p className="text-sm text-gray-600">{selectedChat.phoneNumber}</p>
             </div>
+            <div className="p-2">
+              <input
+                type="text"
+                placeholder="חיפוש בהיסטוריית הצ'אט"
+                className="w-full p-2 rounded border"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                onKeyPress={(e) => e.key === 'Enter' && handleSearchMessages()}
+              />
+            </div>
             <div 
               ref={chatContainerRef}
               className="flex-1 overflow-y-auto p-4"
@@ -168,6 +286,14 @@ const WhatsAppStyleChat = () => {
                     }`}
                   >
                     {message.text}
+                    {message.sender === 'Me' && (
+                      <button
+                        onClick={() => handleDeleteMessage(message.id)}
+                        className="ml-2 text-red-500"
+                      >
+                        <Trash2 size={16} />
+                      </button>
+                    )}
                   </div>
                   <div className="text-xs text-gray-500 mt-1">
                     {new Date(message.timestamp * 1000).toLocaleString('he-IL')}
@@ -214,6 +340,18 @@ const WhatsAppStyleChat = () => {
                   className="mr-2"
                 >
                   <Image size={24} />
+                </button>
+                <button
+                  onClick={handleVoiceRecording}
+                  className={`mr-2 ${isRecording ? 'text-red-500' : ''}`}
+                >
+                  <Mic size={24} />
+                </button>
+                <button
+                  onClick={handleSendLocation}
+                  className="mr-2"
+                >
+                  <MapPin size={24} />
                 </button>
               </div>
             </div>
