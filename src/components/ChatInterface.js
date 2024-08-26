@@ -2,6 +2,9 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Search, Send, Image, Video, File } from 'lucide-react';
 import axios from 'axios';
 
+// הגדר את כתובת הבסיס של ה-API
+const API_BASE_URL = process.env.REACT_APP_API_BASE_URL || '/api';
+
 const WhatsAppStyleChat = () => {
   const [chats, setChats] = useState([]);
   const [selectedChat, setSelectedChat] = useState(null);
@@ -31,11 +34,11 @@ const WhatsAppStyleChat = () => {
   const fetchChats = async () => {
     try {
       setLoading(true);
-      const response = await axios.get('/api/chats');
+      const response = await axios.get(`${API_BASE_URL}/chats`);
       setChats(response.data);
     } catch (error) {
-      setError('Failed to fetch chats. Please try again.');
       console.error('Error fetching chats:', error);
+      setError(error.response?.data?.error || 'Failed to fetch chats. Please try again.');
     } finally {
       setLoading(false);
     }
@@ -44,11 +47,13 @@ const WhatsAppStyleChat = () => {
   const fetchMessages = async (phoneNumber) => {
     try {
       setLoading(true);
-      const response = await axios.get(`/api/messages?phoneNumber=${phoneNumber}`);
+      const response = await axios.get(`${API_BASE_URL}/messages`, {
+        params: { phoneNumber }
+      });
       setMessages(response.data);
     } catch (error) {
-      setError('Failed to fetch messages. Please try again.');
       console.error('Error fetching messages:', error);
+      setError(error.response?.data?.error || 'Failed to fetch messages. Please try again.');
     } finally {
       setLoading(false);
     }
@@ -58,16 +63,15 @@ const WhatsAppStyleChat = () => {
     if (inputMessage.trim() && selectedChat) {
       try {
         setLoading(true);
-        // Note: You'll need to implement this API endpoint
-        const response = await axios.post('/api/sendMessage', {
+        const response = await axios.post(`${API_BASE_URL}/sendMessage`, {
           phoneNumber: selectedChat.phoneNumber,
           message: inputMessage
         });
         setMessages([...messages, response.data]);
         setInputMessage('');
       } catch (error) {
-        setError('Failed to send message. Please try again.');
         console.error('Error sending message:', error);
+        setError(error.response?.data?.error || 'Failed to send message. Please try again.');
       } finally {
         setLoading(false);
       }
@@ -83,14 +87,13 @@ const WhatsAppStyleChat = () => {
 
       try {
         setLoading(true);
-        // Note: You'll need to implement this API endpoint
-        const response = await axios.post('/api/uploadFile', formData, {
+        const response = await axios.post(`${API_BASE_URL}/uploadFile`, formData, {
           headers: { 'Content-Type': 'multipart/form-data' }
         });
         setMessages([...messages, response.data]);
       } catch (error) {
-        setError('Failed to upload file. Please try again.');
         console.error('Error uploading file:', error);
+        setError(error.response?.data?.error || 'Failed to upload file. Please try again.');
       } finally {
         setLoading(false);
       }
