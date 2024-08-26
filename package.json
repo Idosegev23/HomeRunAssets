@@ -3,7 +3,6 @@
   "version": "0.1.0",
   "private": true,
   "main": "index.js",
-  "type": "module",
   "engines": {
     "node": ">=14.0.0"
   },
@@ -20,7 +19,7 @@
     "@emotion/react": "^11.13.0",
     "@emotion/styled": "^11.13.0",
     "@hebcal/core": "^5.4.11",
-    "@mui/icons-material": "^5.14.0",
+    "@mui/icons-material": "^5.16.7",
     "@mui/material": "^5.16.7",
     "@testing-library/jest-dom": "^5.17.0",
     "@testing-library/react": "^16.0.0",
