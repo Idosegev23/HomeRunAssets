@@ -1,8 +1,10 @@
 import React, { useState, useEffect, useRef } from 'react';
 import axios from 'axios';
 import { Search, Send, Image, Video, File } from 'lucide-react';
+import io from 'socket.io-client';
 
 const API_BASE_URL = process.env.REACT_APP_API_BASE_URL || 'https://home-run-assets.vercel.app/api';
+const SOCKET_URL = process.env.REACT_APP_SOCKET_URL || 'https://home-run-assets.vercel.app';
 
 const ChatInterface = () => {
   const [chats, setChats] = useState([]);
@@ -11,11 +13,20 @@ const ChatInterface = () => {
   const [inputMessage, setInputMessage] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
+  const [searchQuery, setSearchQuery] = useState('');
   const chatContainerRef = useRef(null);
   const fileInputRef = useRef(null);
+  const socketRef = useRef(null);
 
   useEffect(() => {
     fetchChats();
+    initializeSocket();
+
+    return () => {
+      if (socketRef.current) {
+        socketRef.current.disconnect();
+      }
+    };
   }, []);
 
   useEffect(() => {
@@ -30,6 +41,42 @@ const ChatInterface = () => {
     }
   }, [messages]);
 
+  const initializeSocket = () => {
+    socketRef.current = io(SOCKET_URL);
+    socketRef.current.on('newMessage', handleNewMessage);
+  };
+
+  const handleNewMessage = (message) => {
+    if (selectedChat && message.chatId === selectedChat.senderData.phoneNumber) {
+      setMessages(prevMessages => [...prevMessages, message]);
+    }
+    updateChatList(message);
+  };
+
+  const updateChatList = (message) => {
+    setChats(prevChats => {
+      const chatIndex = prevChats.findIndex(chat => chat.senderData.phoneNumber === message.chatId);
+      if (chatIndex > -1) {
+        const updatedChats = [...prevChats];
+        updatedChats[chatIndex] = {
+          ...updatedChats[chatIndex],
+          lastMessage: message.text,
+          timestamp: message.timestamp
+        };
+        return updatedChats;
+      } else {
+        return [{
+          senderData: {
+            phoneNumber: message.chatId,
+            senderName: message.senderName || 'Unknown'
+          },
+          lastMessage: message.text,
+          timestamp: message.timestamp
+        }, ...prevChats];
+      }
+    });
+  };
+
   const handleApiError = (error) => {
     console.error('API Error:', error);
     setError('An error occurred. Please try again.');
@@ -39,24 +86,37 @@ const ChatInterface = () => {
     try {
       setLoading(true);
       const response = await axios.get(`${API_BASE_URL}/getLastIncomingMessages`);
-      const formattedChats = response.data.map(chat => {
+      const formattedChats = await Promise.all(response.data.map(async (chat) => {
         if (chat.senderData && chat.senderData.sender) {
           const phoneNumber = chat.senderData.sender.replace(/^\+?972/, '0').replace('@c.us', '');
+          const customerInfo = await fetchCustomerInfo(phoneNumber);
           return {
             ...chat,
             senderData: {
               ...chat.senderData,
               phoneNumber,
+              senderName: customerInfo ? `${customerInfo.First_name} ${customerInfo.Last_name}` : 'Unknown',
+              customerInfo: customerInfo
             },
           };
         }
         return chat;
-      });
+      }));
       setChats(formattedChats);
     } catch (error) {
       handleApiError(error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchCustomerInfo = async (phoneNumber) => {
+    try {
+      const response = await axios.get(`${API_BASE_URL}/getCustomerInfo`, { params: { phoneNumber } });
+      return response.data;
+    } catch (error) {
+      console.error('Failed to fetch customer info:', error);
+      return null;
     }
   };
 
@@ -102,7 +162,7 @@ const ChatInterface = () => {
       setLoading(true);
       const formData = new FormData();
       formData.append('file', file);
-      
+
       const uploadResponse = await axios.post(`${API_BASE_URL}/uploadFile`, formData, {
         headers: {
           'Content-Type': 'multipart/form-data',
@@ -124,6 +184,11 @@ const ChatInterface = () => {
     }
   };
 
+  const filteredChats = chats.filter(chat => 
+    chat.senderData.senderName.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    chat.senderData.phoneNumber.includes(searchQuery)
+  );
+
   return (
     <div className="flex h-screen bg-gray-100" dir="rtl">
       {/* Chat List */}
@@ -134,21 +199,23 @@ const ChatInterface = () => {
               type="text"
               placeholder="חיפוש צ'אטים"
               className="w-full p-2 pr-8 rounded border"
-              onChange={(e) => console.log(e.target.value)}
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
             />
             <Search className="absolute right-2 top-2 text-gray-400" size={20} />
           </div>
         </div>
         <ul className="overflow-y-auto h-[calc(100vh-80px)]">
-          {chats.length > 0 ? (
-            chats.map((chat) => (
+          {filteredChats.length > 0 ? (
+            filteredChats.map((chat) => (
               <li
                 key={chat.idMessage}
                 className={`p-4 hover:bg-gray-100 cursor-pointer ${selectedChat?.senderData?.phoneNumber === chat.senderData?.phoneNumber ? 'bg-gray-200' : ''}`}
                 onClick={() => setSelectedChat(chat)}
               >
-                <div className="font-semibold">{chat.senderData.senderName || chat.senderData?.phoneNumber}</div>
+                <div className="font-semibold">{chat.senderData.senderName}</div>
                 <div className="text-sm text-gray-600">{chat.textMessage}</div>
+                <div className="text-xs text-gray-500">{chat.senderData.phoneNumber}</div>
               </li>
             ))
           ) : (
@@ -162,8 +229,15 @@ const ChatInterface = () => {
         {selectedChat ? (
           <>
             <div className="bg-gray-300 p-4">
-              <h2 className="font-semibold">{selectedChat.senderData.senderName || selectedChat.senderData?.phoneNumber}</h2>
-              <p className="text-sm text-gray-600">{selectedChat.senderData?.phoneNumber}</p>
+              <h2 className="font-semibold">{selectedChat.senderData.senderName}</h2>
+              <p className="text-sm text-gray-600">{selectedChat.senderData.phoneNumber}</p>
+              {selectedChat.senderData.customerInfo && (
+                <div className="mt-2 text-xs">
+                  <p>Email: {selectedChat.senderData.customerInfo.Email}</p>
+                  <p>Address: {selectedChat.senderData.customerInfo.Address}</p>
+                  {/* Add more customer info fields as needed */}
+                </div>
+              )}
             </div>
             <div ref={chatContainerRef} className="flex-1 overflow-y-auto p-4 bg-white">
               {messages.length > 0 ? (
@@ -190,6 +264,7 @@ const ChatInterface = () => {
                   type="text"
                   value={inputMessage}
                   onChange={(e) => setInputMessage(e.target.value)}
+                  onKeyPress={(e) => e.key === 'Enter' && handleSendMessage()}
                   placeholder="הקלד הודעה"
                   className="flex-1 p-2 rounded"
                 />

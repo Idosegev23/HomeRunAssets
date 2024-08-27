@@ -1,12 +1,94 @@
+// server.js
+import express from 'express';
+import http from 'http';
+import { Server } from 'socket.io';
+import cors from 'cors';
+import dotenv from 'dotenv';
 import axios from 'axios';
 import { kv } from '@vercel/kv';
+import Airtable from 'airtable';
+
+dotenv.config();
+
+const app = express();
+const server = http.createServer(app);
+const io = new Server(server, {
+  cors: {
+    origin: "*",
+    methods: ["GET", "POST"]
+  }
+});
+
+app.use(cors());
+app.use(express.json());
 
 const GREENAPI_ID = process.env.GREENAPI_ID;
 const GREENAPI_APITOKENINSTANCE = process.env.GREENAPI_APITOKENINSTANCE;
 const GREENAPI_BASE_URL = `https://api.green-api.com/waInstance${GREENAPI_ID}`;
+const AIRTABLE_API_KEY = process.env.AIRTABLE_API_KEY;
+const AIRTABLE_BASE_ID = process.env.AIRTABLE_BASE_ID;
 
-// שליחת הודעה טקסט
-export async function sendMessage(req, res) {
+Airtable.configure({
+  endpointUrl: 'https://api.airtable.com',
+  apiKey: AIRTABLE_API_KEY
+});
+const base = Airtable.base(AIRTABLE_BASE_ID);
+
+io.on('connection', (socket) => {
+  console.log('New client connected');
+  socket.on('disconnect', () => {
+    console.log('Client disconnected');
+  });
+});
+
+async function getCustomerInfo(phoneNumber) {
+  const formattedNumber = phoneNumber.replace(/^\+?972/, '0').replace('@c.us', '');
+  
+  try {
+    const records = await base('customers').select({
+      filterByFormula: `{Cell}='${formattedNumber}'`
+    }).firstPage();
+    
+    if (records.length > 0) {
+      return records[0].fields;
+    }
+    return null;
+  } catch (error) {
+    console.error('Error fetching customer info from Airtable:', error);
+    return null;
+  }
+}
+
+app.get('/api/getLastIncoming', async (req, res) => {
+  try {
+    const response = await axios.get(`${GREENAPI_BASE_URL}/lastIncomingMessages/${GREENAPI_APITOKENINSTANCE}`);
+    const formattedMessages = await Promise.all(response.data.map(async msg => {
+      const customerInfo = await getCustomerInfo(msg.senderId);
+      return {
+        type: msg.type,
+        idMessage: msg.idMessage,
+        timestamp: msg.timestamp,
+        typeMessage: msg.typeMessage,
+        chatId: msg.chatId,
+        senderId: msg.senderId,
+        senderName: customerInfo ? `${customerInfo.First_name} ${customerInfo.Last_name}` : 'Unknown',
+        textMessage: msg.textMessage || msg.caption || 'Non-text message',
+        downloadUrl: msg.downloadUrl,
+        caption: msg.caption,
+        fileName: msg.fileName,
+        extendedTextMessage: msg.extendedTextMessage
+      };
+    }));
+
+    await kv.set('last_incoming_messages', formattedMessages, { ex: 300 }); // Cache for 5 minutes
+    res.status(200).json(formattedMessages);
+  } catch (error) {
+    console.error('Failed to fetch last incoming messages:', error);
+    res.status(500).json({ error: 'Failed to fetch last incoming messages' });
+  }
+});
+
+app.post('/api/sendMessage', async (req, res) => {
   const { phoneNumber, message } = req.body;
   try {
     if (!phoneNumber) {
@@ -21,80 +103,23 @@ export async function sendMessage(req, res) {
       chatId,
       message
     });
+    
+    io.emit('newMessage', {
+      id: response.data.idMessage,
+      sender: 'Me',
+      text: message,
+      timestamp: Math.floor(Date.now() / 1000),
+      chatId: phoneNumber
+    });
+
     res.status(200).json({ success: true, messageId: response.data.idMessage });
   } catch (error) {
     console.error('Failed to send message:', error);
     res.status(500).json({ error: 'Failed to send message' });
   }
-}
+});
 
-// קבלת הודעות אחרונות
-export async function getRecentMessages(req, res) {
-  const { phoneNumber } = req.query;
-  try {
-    if (!phoneNumber) {
-      console.error('Phone number is missing');
-      return res.status(400).json({ error: 'Phone number is required' });
-    }
-
-    const chatId = `${phoneNumber.replace(/\D/g, '').replace(/^0/, '972')}@c.us`;
-    console.log('Fetching recent messages for:', chatId);
-
-    const cachedMessages = await kv.get(`recent_messages:${chatId}`);
-    
-    if (cachedMessages) {
-      console.log('Returning cached messages');
-      return res.status(200).json(cachedMessages);
-    }
-
-    const response = await axios.post(`${GREENAPI_BASE_URL}/getChatHistory/${GREENAPI_APITOKENINSTANCE}`, {
-      chatId,
-      count: 50
-    });
-
-    const messages = response.data.map(msg => ({
-      id: msg.idMessage,
-      sender: msg.type === 'outgoing' ? 'Me' : 'Other',
-      text: msg.textMessage || msg.caption || 'Non-text message',
-      timestamp: msg.timestamp,
-      type: msg.typeMessage
-    }));
-
-    await kv.set(`recent_messages:${chatId}`, messages, { ex: 300 });
-    res.status(200).json(messages);
-  } catch (error) {
-    console.error('Failed to fetch recent messages:', error);
-    res.status(500).json({ error: 'Failed to fetch recent messages' });
-  }
-}
-
-// שליחת קובץ (תמונה או וידאו)
-export async function sendFile(req, res) {
-  const { phoneNumber, fileUrl, caption } = req.body;
-  try {
-    if (!phoneNumber) {
-      console.error('Phone number is missing');
-      return res.status(400).json({ error: 'Phone number is required' });
-    }
-
-    const chatId = `${phoneNumber.replace(/\D/g, '').replace(/^0/, '972')}@c.us`;
-    console.log('Sending file to:', chatId);
-
-    const response = await axios.post(`${GREENAPI_BASE_URL}/sendFileByUrl/${GREENAPI_APITOKENINSTANCE}`, {
-      chatId,
-      urlFile: fileUrl,
-      fileName: 'file',
-      caption: caption || ''
-    });
-    res.status(200).json({ success: true, messageId: response.data.idMessage });
-  } catch (error) {
-    console.error('Failed to send file:', error);
-    res.status(500).json({ error: 'Failed to send file' });
-  }
-}
-
-// קבלת היסטוריית צ'אט
-export async function getChatHistory(req, res) {
+app.get('/api/getChatHistory', async (req, res) => {
   const { phoneNumber, limit = 100 } = req.query;
   try {
     if (!phoneNumber) {
@@ -106,7 +131,7 @@ export async function getChatHistory(req, res) {
     console.log('Fetching chat history for:', chatId);
 
     const cachedHistory = await kv.get(`chat_history:${chatId}`);
-    
+
     if (cachedHistory) {
       console.log('Returning cached chat history');
       return res.status(200).json(cachedHistory);
@@ -131,44 +156,62 @@ export async function getChatHistory(req, res) {
     console.error('Failed to fetch chat history:', error);
     res.status(500).json({ error: 'Failed to fetch chat history' });
   }
-}
+});
 
-// Webhook לקבלת הודעות בזמן אמת
-export async function webhookHandler(req, res) {
+app.post('/api/sendFile', async (req, res) => {
+  const { phoneNumber, fileUrl, caption } = req.body;
+  try {
+    if (!phoneNumber) {
+      console.error('Phone number is missing');
+      return res.status(400).json({ error: 'Phone number is required' });
+    }
+
+    const chatId = `${phoneNumber.replace(/\D/g, '').replace(/^0/, '972')}@c.us`;
+    console.log('Sending file to:', chatId);
+
+    const response = await axios.post(`${GREENAPI_BASE_URL}/sendFileByUrl/${GREENAPI_APITOKENINSTANCE}`, {
+      chatId,
+      urlFile: fileUrl,
+      fileName: 'file',
+      caption: caption || ''
+    });
+
+    io.emit('newMessage', {
+      id: response.data.idMessage,
+      sender: 'Me',
+      text: `File: ${caption || 'Untitled'}`,
+      timestamp: Math.floor(Date.now() / 1000),
+      chatId: phoneNumber,
+      fileUrl: fileUrl
+    });
+
+    res.status(200).json({ success: true, messageId: response.data.idMessage });
+  } catch (error) {
+    console.error('Failed to send file:', error);
+    res.status(500).json({ error: 'Failed to send file' });
+  }
+});
+
+app.post('/api/webhook', async (req, res) => {
   const update = req.body;
   console.log('Received update:', update);
-  
-  // כאן תוכל להוסיף לוגיקה לטיפול בעדכונים שמתקבלים
+
+  if (update.body.typeWebhook === 'incomingMessageReceived') {
+    const message = update.body.messageData;
+    const senderInfo = await getCustomerInfo(message.sender);
+    
+    io.emit('newMessage', {
+      id: message.idMessage,
+      sender: 'Other',
+      text: message.textMessage || message.caption || 'Non-text message',
+      timestamp: message.timestamp,
+      chatId: message.sender,
+      senderName: senderInfo ? `${senderInfo.First_name} ${senderInfo.Last_name}` : 'Unknown'
+    });
+  }
 
   res.status(200).send('OK');
-}
+});
 
-export default async function handler(req, res) {
-  const { method } = req;
-  
-  switch(method) {
-    case 'POST':
-      if (req.url.endsWith('/sendMessage')) {
-        await sendMessage(req, res);
-      } else if (req.url.endsWith('/sendFile')) {
-        await sendFile(req, res);
-      } else if (req.url.endsWith('/webhook')) {
-        await webhookHandler(req, res);
-      } else {
-        res.status(404).json({ error: 'Not found' });
-      }
-      break;
-    case 'GET':
-      if (req.url.includes('/getRecentMessages')) {
-        await getRecentMessages(req, res);
-      } else if (req.url.includes('/getChatHistory')) {
-        await getChatHistory(req, res);
-      } else {
-        res.status(404).json({ error: 'Not found' });
-      }
-      break;
-    default:
-      res.setHeader('Allow', ['GET', 'POST']);
-      res.status(405).end(`Method ${method} Not Allowed`);
-  }
-}
+const PORT = process.env.PORT || 3001;
+server.listen(PORT, () => console.log(`Server running on port ${PORT}`));
