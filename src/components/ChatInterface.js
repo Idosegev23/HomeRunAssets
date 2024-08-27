@@ -55,7 +55,7 @@ const ChatInterface = () => {
 
   const updateChatList = (message) => {
     setChats(prevChats => {
-      const chatIndex = prevChats.findIndex(chat => chat.senderData.phoneNumber === message.chatId);
+      const chatIndex = prevChats.findIndex(chat => chat.senderData?.phoneNumber === message.chatId);
       if (chatIndex > -1) {
         const updatedChats = [...prevChats];
         updatedChats[chatIndex] = {
@@ -86,37 +86,22 @@ const ChatInterface = () => {
     try {
       setLoading(true);
       const response = await axios.get(`${API_BASE_URL}/getLastIncomingMessages`);
-      const formattedChats = await Promise.all(response.data.map(async (chat) => {
-        if (chat.senderData && chat.senderData.sender) {
-          const phoneNumber = chat.senderData.sender.replace(/^\+?972/, '0').replace('@c.us', '');
-          const customerInfo = await fetchCustomerInfo(phoneNumber);
-          return {
-            ...chat,
-            senderData: {
-              ...chat.senderData,
-              phoneNumber,
-              senderName: customerInfo ? `${customerInfo.First_name} ${customerInfo.Last_name}` : 'Unknown',
-              customerInfo: customerInfo
-            },
-          };
-        }
-        return chat;
-      }));
+      const formattedChats = response.data.map(chat => {
+        const phoneNumber = chat.senderData?.sender?.replace(/^\+?972/, '0').replace('@c.us', '') || '';
+        return {
+          ...chat,
+          senderData: {
+            ...chat.senderData,
+            phoneNumber,
+            senderName: chat.senderData?.senderName || 'Unknown',
+          },
+        };
+      });
       setChats(formattedChats);
     } catch (error) {
       handleApiError(error);
     } finally {
       setLoading(false);
-    }
-  };
-
-  const fetchCustomerInfo = async (phoneNumber) => {
-    try {
-      const response = await axios.get(`${API_BASE_URL}/getCustomerInfo`, { params: { phoneNumber } });
-      return response.data;
-    } catch (error) {
-      console.error('Failed to fetch customer info:', error);
-      return null;
     }
   };
 
@@ -184,10 +169,12 @@ const ChatInterface = () => {
     }
   };
 
-  const filteredChats = chats.filter(chat => 
-    chat.senderData.senderName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    chat.senderData.phoneNumber.includes(searchQuery)
-  );
+  const filteredChats = chats.filter(chat => {
+    const senderName = chat.senderData?.senderName || 'Unknown';
+    const phoneNumber = chat.senderData?.phoneNumber || '';
+    return senderName.toLowerCase().includes(searchQuery.toLowerCase()) ||
+           phoneNumber.includes(searchQuery);
+  });
 
   return (
     <div className="flex h-screen bg-gray-100" dir="rtl">
@@ -209,13 +196,13 @@ const ChatInterface = () => {
           {filteredChats.length > 0 ? (
             filteredChats.map((chat) => (
               <li
-                key={chat.idMessage}
+                key={chat.idMessage || chat.senderData?.phoneNumber}
                 className={`p-4 hover:bg-gray-100 cursor-pointer ${selectedChat?.senderData?.phoneNumber === chat.senderData?.phoneNumber ? 'bg-gray-200' : ''}`}
                 onClick={() => setSelectedChat(chat)}
               >
-                <div className="font-semibold">{chat.senderData.senderName}</div>
-                <div className="text-sm text-gray-600">{chat.textMessage}</div>
-                <div className="text-xs text-gray-500">{chat.senderData.phoneNumber}</div>
+                <div className="font-semibold">{chat.senderData?.senderName || 'Unknown'}</div>
+                <div className="text-sm text-gray-600">{chat.textMessage || chat.lastMessage}</div>
+                <div className="text-xs text-gray-500">{chat.senderData?.phoneNumber}</div>
               </li>
             ))
           ) : (
@@ -229,15 +216,8 @@ const ChatInterface = () => {
         {selectedChat ? (
           <>
             <div className="bg-gray-300 p-4">
-              <h2 className="font-semibold">{selectedChat.senderData.senderName}</h2>
-              <p className="text-sm text-gray-600">{selectedChat.senderData.phoneNumber}</p>
-              {selectedChat.senderData.customerInfo && (
-                <div className="mt-2 text-xs">
-                  <p>Email: {selectedChat.senderData.customerInfo.Email}</p>
-                  <p>Address: {selectedChat.senderData.customerInfo.Address}</p>
-                  {/* Add more customer info fields as needed */}
-                </div>
-              )}
+              <h2 className="font-semibold">{selectedChat.senderData?.senderName || 'Unknown'}</h2>
+              <p className="text-sm text-gray-600">{selectedChat.senderData?.phoneNumber}</p>
             </div>
             <div ref={chatContainerRef} className="flex-1 overflow-y-auto p-4 bg-white">
               {messages.length > 0 ? (
