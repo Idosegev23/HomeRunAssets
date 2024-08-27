@@ -85,7 +85,18 @@ const ChatInterface = () => {
       setLoading(true);
       const response = await axios.get(`${API_BASE_URL}/getLastIncomingMessages`);
       const formattedChats = await Promise.all(response.data.map(async (chat) => {
-        const phoneNumber = chat.chatId.replace(/^\+?972/, '0').replace('@c.us', '');
+        let phoneNumber = '';
+        if (chat.chatId) {
+          phoneNumber = chat.chatId.replace(/^\+?972/, '0').replace('@c.us', '');
+        } else if (chat.senderId) {
+          phoneNumber = chat.senderId.replace(/^\+?972/, '0').replace('@c.us', '');
+        }
+        
+        if (!phoneNumber) {
+          console.error('Unable to extract phone number from chat:', chat);
+          return null;
+        }
+  
         const customerInfo = await fetchCustomerInfo(phoneNumber);
         return {
           ...chat,
@@ -94,7 +105,9 @@ const ChatInterface = () => {
           customerInfo
         };
       }));
-      setChats(formattedChats);
+  
+      const validChats = formattedChats.filter(chat => chat !== null);
+      setChats(validChats);
     } catch (error) {
       handleApiError(error);
     } finally {
@@ -103,6 +116,10 @@ const ChatInterface = () => {
   };
 
   const fetchCustomerInfo = async (phoneNumber) => {
+    if (!phoneNumber) {
+      console.error('Phone number is undefined');
+      return null;
+    }
     try {
       const response = await axios.get(`${API_BASE_URL}/getCustomerInfo`, { params: { phoneNumber } });
       return response.data;

@@ -59,34 +59,40 @@ async function getCustomerInfo(phoneNumber) {
 }
 
 app.get('/api/getLastIncomingMessages', async (req, res) => {
-  try {
-    const response = await axios.get(`${GREENAPI_BASE_URL}/lastIncomingMessages/${GREENAPI_APITOKENINSTANCE}`);
-    const formattedMessages = await Promise.all(response.data.map(async msg => {
-      const customerInfo = await getCustomerInfo(msg.senderId);
-      return {
-        type: msg.type,
-        idMessage: msg.idMessage,
-        timestamp: msg.timestamp,
-        typeMessage: msg.typeMessage,
-        chatId: msg.chatId,
-        senderId: msg.senderId,
-        senderName: customerInfo ? `${customerInfo.First_name} ${customerInfo.Last_name}` : (msg.senderName || 'Unknown'),
-        textMessage: msg.textMessage || msg.caption || 'Non-text message',
-        downloadUrl: msg.downloadUrl,
-        caption: msg.caption,
-        fileName: msg.fileName,
-        extendedTextMessage: msg.extendedTextMessage,
-        customerInfo: customerInfo
-      };
-    }));
-
-    await kv.set('last_incoming_messages', formattedMessages, { ex: 300 }); // Cache for 5 minutes
-    res.status(200).json(formattedMessages);
-  } catch (error) {
-    console.error('Failed to fetch last incoming messages:', error);
-    res.status(500).json({ error: 'Failed to fetch last incoming messages' });
-  }
-});
+    try {
+      const response = await axios.get(`${GREENAPI_BASE_URL}/lastIncomingMessages/${GREENAPI_APITOKENINSTANCE}`);
+      const formattedMessages = await Promise.all(response.data.map(async msg => {
+        const senderId = msg.senderId || msg.chatId;
+        if (!senderId) {
+          console.error('Message without senderId or chatId:', msg);
+          return null;
+        }
+        const customerInfo = await getCustomerInfo(senderId);
+        return {
+          type: msg.type,
+          idMessage: msg.idMessage,
+          timestamp: msg.timestamp,
+          typeMessage: msg.typeMessage,
+          chatId: msg.chatId || msg.senderId,
+          senderId: senderId,
+          senderName: customerInfo ? `${customerInfo.First_name} ${customerInfo.Last_name}` : (msg.senderName || 'Unknown'),
+          textMessage: msg.textMessage || msg.caption || 'Non-text message',
+          downloadUrl: msg.downloadUrl,
+          caption: msg.caption,
+          fileName: msg.fileName,
+          extendedTextMessage: msg.extendedTextMessage,
+          customerInfo: customerInfo
+        };
+      }));
+  
+      const validMessages = formattedMessages.filter(msg => msg !== null);
+      await kv.set('last_incoming_messages', validMessages, { ex: 300 }); // Cache for 5 minutes
+      res.status(200).json(validMessages);
+    } catch (error) {
+      console.error('Failed to fetch last incoming messages:', error);
+      res.status(500).json({ error: 'Failed to fetch last incoming messages' });
+    }
+  });
 
 app.get('/api/getCustomerInfo', async (req, res) => {
   const { phoneNumber } = req.query;
