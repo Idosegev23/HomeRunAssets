@@ -31,7 +31,7 @@ const ChatInterface = () => {
 
   useEffect(() => {
     if (selectedChat) {
-      fetchMessages(selectedChat.senderData.phoneNumber);
+      fetchMessages(selectedChat.chatId);
     }
   }, [selectedChat]);
 
@@ -47,7 +47,7 @@ const ChatInterface = () => {
   };
 
   const handleNewMessage = (message) => {
-    if (selectedChat && message.chatId === selectedChat.senderData.phoneNumber) {
+    if (selectedChat && message.chatId === selectedChat.chatId) {
       setMessages(prevMessages => [...prevMessages, message]);
     }
     updateChatList(message);
@@ -55,22 +55,20 @@ const ChatInterface = () => {
 
   const updateChatList = (message) => {
     setChats(prevChats => {
-      const chatIndex = prevChats.findIndex(chat => chat.senderData?.phoneNumber === message.chatId);
+      const chatIndex = prevChats.findIndex(chat => chat.chatId === message.chatId);
       if (chatIndex > -1) {
         const updatedChats = [...prevChats];
         updatedChats[chatIndex] = {
           ...updatedChats[chatIndex],
-          lastMessage: message.text,
+          lastMessage: message.textMessage,
           timestamp: message.timestamp
         };
         return updatedChats;
       } else {
         return [{
-          senderData: {
-            phoneNumber: message.chatId,
-            senderName: message.senderName || 'Unknown'
-          },
-          lastMessage: message.text,
+          chatId: message.chatId,
+          senderName: message.senderName || 'Unknown',
+          lastMessage: message.textMessage,
           timestamp: message.timestamp
         }, ...prevChats];
       }
@@ -86,17 +84,16 @@ const ChatInterface = () => {
     try {
       setLoading(true);
       const response = await axios.get(`${API_BASE_URL}/getLastIncomingMessages`);
-      const formattedChats = response.data.map(chat => {
-        const phoneNumber = chat.senderData?.sender?.replace(/^\+?972/, '0').replace('@c.us', '') || '';
+      const formattedChats = await Promise.all(response.data.map(async (chat) => {
+        const phoneNumber = chat.chatId.replace(/^\+?972/, '0').replace('@c.us', '');
+        const customerInfo = await fetchCustomerInfo(phoneNumber);
         return {
           ...chat,
-          senderData: {
-            ...chat.senderData,
-            phoneNumber,
-            senderName: chat.senderData?.senderName || 'Unknown',
-          },
+          phoneNumber,
+          senderName: customerInfo ? `${customerInfo.First_name} ${customerInfo.Last_name}` : (chat.senderName || 'Unknown'),
+          customerInfo
         };
-      });
+      }));
       setChats(formattedChats);
     } catch (error) {
       handleApiError(error);
@@ -105,16 +102,26 @@ const ChatInterface = () => {
     }
   };
 
-  const fetchMessages = async (phoneNumber) => {
-    if (!phoneNumber) {
-      console.error('Cannot fetch messages. Phone number is undefined.');
+  const fetchCustomerInfo = async (phoneNumber) => {
+    try {
+      const response = await axios.get(`${API_BASE_URL}/getCustomerInfo`, { params: { phoneNumber } });
+      return response.data;
+    } catch (error) {
+      console.error('Failed to fetch customer info:', error);
+      return null;
+    }
+  };
+
+  const fetchMessages = async (chatId) => {
+    if (!chatId) {
+      console.error('Cannot fetch messages. Chat ID is undefined.');
       setError('Cannot fetch messages. Please select a valid chat.');
       return;
     }
 
     try {
       setLoading(true);
-      const response = await axios.get(`${API_BASE_URL}/getChatHistory`, { params: { phoneNumber } });
+      const response = await axios.get(`${API_BASE_URL}/getChatHistory`, { params: { chatId, count: 50 } });
       setMessages(response.data);
     } catch (error) {
       handleApiError(error);
@@ -127,11 +134,10 @@ const ChatInterface = () => {
     if (!inputMessage.trim() || !selectedChat) return;
     try {
       setLoading(true);
-      const response = await axios.post(`${API_BASE_URL}/sendMessage`, {
-        phoneNumber: selectedChat.senderData.phoneNumber,
+      await axios.post(`${API_BASE_URL}/sendMessage`, {
+        chatId: selectedChat.chatId,
         message: inputMessage,
       });
-      setMessages([...messages, { id: response.data.messageId, sender: 'Me', text: inputMessage, timestamp: Math.floor(Date.now() / 1000) }]);
       setInputMessage('');
     } catch (error) {
       handleApiError(error);
@@ -155,13 +161,11 @@ const ChatInterface = () => {
       });
       const fileUrl = uploadResponse.data.fileUrl;
 
-      const response = await axios.post(`${API_BASE_URL}/sendFile`, {
-        phoneNumber: selectedChat.senderData.phoneNumber,
+      await axios.post(`${API_BASE_URL}/sendFile`, {
+        chatId: selectedChat.chatId,
         fileUrl,
         caption: file.name,
       });
-
-      setMessages([...messages, { id: response.data.messageId, sender: 'Me', text: `File: ${file.name}`, timestamp: Math.floor(Date.now() / 1000) }]);
     } catch (error) {
       handleApiError(error);
     } finally {
@@ -169,12 +173,10 @@ const ChatInterface = () => {
     }
   };
 
-  const filteredChats = chats.filter(chat => {
-    const senderName = chat.senderData?.senderName || 'Unknown';
-    const phoneNumber = chat.senderData?.phoneNumber || '';
-    return senderName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-           phoneNumber.includes(searchQuery);
-  });
+  const filteredChats = chats.filter(chat => 
+    chat.senderName.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    chat.phoneNumber.includes(searchQuery)
+  );
 
   return (
     <div className="flex h-screen bg-gray-100" dir="rtl">
@@ -196,13 +198,13 @@ const ChatInterface = () => {
           {filteredChats.length > 0 ? (
             filteredChats.map((chat) => (
               <li
-                key={chat.idMessage || chat.senderData?.phoneNumber}
-                className={`p-4 hover:bg-gray-100 cursor-pointer ${selectedChat?.senderData?.phoneNumber === chat.senderData?.phoneNumber ? 'bg-gray-200' : ''}`}
+                key={chat.chatId}
+                className={`p-4 hover:bg-gray-100 cursor-pointer ${selectedChat?.chatId === chat.chatId ? 'bg-gray-200' : ''}`}
                 onClick={() => setSelectedChat(chat)}
               >
-                <div className="font-semibold">{chat.senderData?.senderName || 'Unknown'}</div>
+                <div className="font-semibold">{chat.senderName}</div>
                 <div className="text-sm text-gray-600">{chat.textMessage || chat.lastMessage}</div>
-                <div className="text-xs text-gray-500">{chat.senderData?.phoneNumber}</div>
+                <div className="text-xs text-gray-500">{new Date(chat.timestamp * 1000).toLocaleString('he-IL')}</div>
               </li>
             ))
           ) : (
@@ -216,15 +218,22 @@ const ChatInterface = () => {
         {selectedChat ? (
           <>
             <div className="bg-gray-300 p-4">
-              <h2 className="font-semibold">{selectedChat.senderData?.senderName || 'Unknown'}</h2>
-              <p className="text-sm text-gray-600">{selectedChat.senderData?.phoneNumber}</p>
+              <h2 className="font-semibold">{selectedChat.senderName}</h2>
+              <p className="text-sm text-gray-600">{selectedChat.phoneNumber}</p>
+              {selectedChat.customerInfo && (
+                <div className="mt-2 text-xs">
+                  <p>Email: {selectedChat.customerInfo.Email}</p>
+                  <p>Address: {selectedChat.customerInfo.Address}</p>
+                  {/* Add more customer info fields as needed */}
+                </div>
+              )}
             </div>
             <div ref={chatContainerRef} className="flex-1 overflow-y-auto p-4 bg-white">
               {messages.length > 0 ? (
                 messages.map((message) => (
-                  <div key={message.id} className={`mb-4 flex ${message.sender === 'Me' ? 'justify-end' : 'justify-start'}`}>
-                    <div className={`inline-block p-2 rounded-lg max-w-xs ${message.sender === 'Me' ? 'bg-green-500 text-white' : 'bg-gray-100 text-black'}`}>
-                      {message.text || 'No text'}
+                  <div key={message.idMessage} className={`mb-4 flex ${message.type === 'outgoing' ? 'justify-end' : 'justify-start'}`}>
+                    <div className={`inline-block p-2 rounded-lg max-w-xs ${message.type === 'outgoing' ? 'bg-green-500 text-white' : 'bg-gray-100 text-black'}`}>
+                      {message.textMessage || 'No text'}
                     </div>
                     <div className="text-xs text-gray-500 mt-1">
                       {new Date(message.timestamp * 1000).toLocaleString('he-IL')}
