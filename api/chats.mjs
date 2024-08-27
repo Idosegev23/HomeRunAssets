@@ -6,6 +6,10 @@ import dotenv from 'dotenv';
 import axios from 'axios';
 import { kv } from '@vercel/kv';
 import Airtable from 'airtable';
+import multer from 'multer';
+import path from 'path';
+import fs from 'fs';
+import FormData from 'form-data';
 
 dotenv.config();
 
@@ -33,6 +37,17 @@ Airtable.configure({
 });
 const base = Airtable.base(AIRTABLE_BASE_ID);
 
+// Multer configuration for file uploads
+const storage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    cb(null, 'uploads/');
+  },
+  filename: (req, file, cb) => {
+    cb(null, Date.now() + path.extname(file.originalname));
+  }
+});
+const upload = multer({ storage: storage });
+
 io.on('connection', (socket) => {
   console.log('New client connected');
   socket.on('disconnect', () => {
@@ -40,9 +55,18 @@ io.on('connection', (socket) => {
   });
 });
 
+function formatPhoneNumber(phoneNumber) {
+  phoneNumber = phoneNumber.replace(/\D/g, '');
+  if (phoneNumber.startsWith('972')) {
+    phoneNumber = '0' + phoneNumber.slice(3);
+  } else if (!phoneNumber.startsWith('0')) {
+    phoneNumber = '0' + phoneNumber;
+  }
+  return phoneNumber;
+}
+
 async function getCustomerInfo(phoneNumber) {
-  const formattedNumber = phoneNumber.replace(/^\+?972/, '0').replace('@c.us', '');
-  
+  const formattedNumber = formatPhoneNumber(phoneNumber.replace('@c.us', ''));
   try {
     const records = await base('customers').select({
       filterByFormula: `{Cell}='${formattedNumber}'`
@@ -59,40 +83,40 @@ async function getCustomerInfo(phoneNumber) {
 }
 
 app.get('/api/getLastIncomingMessages', async (req, res) => {
-    try {
-      const response = await axios.get(`${GREENAPI_BASE_URL}/lastIncomingMessages/${GREENAPI_APITOKENINSTANCE}`);
-      const formattedMessages = await Promise.all(response.data.map(async msg => {
-        const senderId = msg.senderId || msg.chatId;
-        if (!senderId) {
-          console.error('Message without senderId or chatId:', msg);
-          return null;
-        }
-        const customerInfo = await getCustomerInfo(senderId);
-        return {
-          type: msg.type,
-          idMessage: msg.idMessage,
-          timestamp: msg.timestamp,
-          typeMessage: msg.typeMessage,
-          chatId: msg.chatId || msg.senderId,
-          senderId: senderId,
-          senderName: customerInfo ? `${customerInfo.First_name} ${customerInfo.Last_name}` : (msg.senderName || 'Unknown'),
-          textMessage: msg.textMessage || msg.caption || 'Non-text message',
-          downloadUrl: msg.downloadUrl,
-          caption: msg.caption,
-          fileName: msg.fileName,
-          extendedTextMessage: msg.extendedTextMessage,
-          customerInfo: customerInfo
-        };
-      }));
-  
-      const validMessages = formattedMessages.filter(msg => msg !== null);
-      await kv.set('last_incoming_messages', validMessages, { ex: 300 }); // Cache for 5 minutes
-      res.status(200).json(validMessages);
-    } catch (error) {
-      console.error('Failed to fetch last incoming messages:', error);
-      res.status(500).json({ error: 'Failed to fetch last incoming messages' });
-    }
-  });
+  try {
+    const response = await axios.get(`${GREENAPI_BASE_URL}/lastIncomingMessages/${GREENAPI_APITOKENINSTANCE}`);
+    const formattedMessages = await Promise.all(response.data.map(async msg => {
+      const senderId = msg.senderId || msg.chatId;
+      if (!senderId) {
+        console.error('Message without senderId or chatId:', msg);
+        return null;
+      }
+      const customerInfo = await getCustomerInfo(senderId);
+      return {
+        type: msg.type,
+        idMessage: msg.idMessage,
+        timestamp: msg.timestamp,
+        typeMessage: msg.typeMessage,
+        chatId: msg.chatId || msg.senderId,
+        senderId: senderId,
+        senderName: customerInfo ? `${customerInfo.First_name} ${customerInfo.Last_name}` : (msg.senderName || 'Unknown'),
+        textMessage: msg.textMessage || msg.caption || 'Non-text message',
+        downloadUrl: msg.downloadUrl,
+        caption: msg.caption,
+        fileName: msg.fileName,
+        extendedTextMessage: msg.extendedTextMessage,
+        customerInfo: customerInfo
+      };
+    }));
+
+    const validMessages = formattedMessages.filter(msg => msg !== null);
+    await kv.set('last_incoming_messages', validMessages, { ex: 300 });
+    res.status(200).json(validMessages);
+  } catch (error) {
+    console.error('Failed to fetch last incoming messages:', error);
+    res.status(500).json({ error: 'Failed to fetch last incoming messages' });
+  }
+});
 
 app.get('/api/getCustomerInfo', async (req, res) => {
   const { phoneNumber } = req.query;
@@ -112,8 +136,6 @@ app.post('/api/sendMessage', async (req, res) => {
       console.error('Chat ID is missing');
       return res.status(400).json({ error: 'Chat ID is required' });
     }
-
-    console.log('Sending message to:', chatId);
 
     const response = await axios.post(`${GREENAPI_BASE_URL}/sendMessage/${GREENAPI_APITOKENINSTANCE}`, {
       chatId,
@@ -143,12 +165,9 @@ app.get('/api/getChatHistory', async (req, res) => {
       return res.status(400).json({ error: 'Chat ID is required' });
     }
 
-    console.log('Fetching chat history for:', chatId);
-
     const cachedHistory = await kv.get(`chat_history:${chatId}`);
 
     if (cachedHistory) {
-      console.log('Returning cached chat history');
       return res.status(200).json(cachedHistory);
     }
 
@@ -167,36 +186,50 @@ app.get('/api/getChatHistory', async (req, res) => {
   }
 });
 
-app.post('/api/sendFile', async (req, res) => {
-  const { chatId, fileUrl, caption } = req.body;
+app.post('/api/uploadFile', upload.single('file'), async (req, res) => {
+  if (!req.file) {
+    return res.status(400).send('No file uploaded.');
+  }
   try {
-    if (!chatId) {
-      console.error('Chat ID is missing');
-      return res.status(400).json({ error: 'Chat ID is required' });
-    }
+    const filePath = req.file.path;
+    const chatId = req.body.chatId;
 
-    console.log('Sending file to:', chatId);
+    const formData = new FormData();
+    formData.append('chatId', chatId);
+    formData.append('file', fs.createReadStream(filePath));
+    formData.append('caption', req.file.originalname);
 
-    const response = await axios.post(`${GREENAPI_BASE_URL}/sendFileByUrl/${GREENAPI_APITOKENINSTANCE}`, {
-      chatId,
-      urlFile: fileUrl,
-      fileName: 'file',
-      caption: caption || ''
-    });
+    const response = await axios.post(
+      `${GREENAPI_BASE_URL}/sendFileByUpload/${GREENAPI_APITOKENINSTANCE}`,
+      formData,
+      {
+        headers: {
+          ...formData.getHeaders(),
+        },
+      }
+    );
 
     io.emit('newMessage', {
       id: response.data.idMessage,
       type: 'outgoing',
-      textMessage: `File: ${caption || 'Untitled'}`,
+      textMessage: `File: ${req.file.originalname}`,
       timestamp: Math.floor(Date.now() / 1000),
       chatId: chatId,
-      fileUrl: fileUrl
+      fileUrl: response.data.urlFile,
+      fileName: req.file.originalname,
+      mimeType: req.file.mimetype
     });
 
-    res.status(200).json({ success: true, messageId: response.data.idMessage });
+    res.json({ 
+      success: true,
+      messageId: response.data.idMessage,
+      fileUrl: response.data.urlFile
+    });
+
+    fs.unlinkSync(filePath);
   } catch (error) {
-    console.error('Failed to send file:', error);
-    res.status(500).json({ error: 'Failed to send file' });
+    console.error('Error uploading file:', error);
+    res.status(500).json({ error: 'Failed to upload file', details: error.message });
   }
 });
 
@@ -208,14 +241,24 @@ app.post('/api/webhook', async (req, res) => {
     const message = update.body.messageData;
     const senderInfo = await getCustomerInfo(message.sender);
     
-    io.emit('newMessage', {
+    let newMessage = {
       id: message.idMessage,
       type: 'incoming',
-      textMessage: message.textMessage || message.caption || 'Non-text message',
       timestamp: message.timestamp,
       chatId: message.sender,
       senderName: senderInfo ? `${senderInfo.First_name} ${senderInfo.Last_name}` : 'Unknown'
-    });
+    };
+
+    if (message.typeMessage === 'textMessage') {
+      newMessage.textMessage = message.textMessage;
+    } else if (['imageMessage', 'videoMessage', 'documentMessage'].includes(message.typeMessage)) {
+      newMessage.textMessage = message.caption || 'File received';
+      newMessage.fileUrl = message.downloadUrl;
+      newMessage.fileName = message.fileName;
+      newMessage.mimeType = message.mimeType;
+    }
+
+    io.emit('newMessage', newMessage);
   }
 
   res.status(200).send('OK');
