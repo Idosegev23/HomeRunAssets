@@ -56,67 +56,93 @@ io.on('connection', (socket) => {
 });
 
 function formatPhoneNumber(phoneNumber) {
-  phoneNumber = phoneNumber.replace(/\D/g, '');
-  if (phoneNumber.startsWith('972')) {
-    phoneNumber = '0' + phoneNumber.slice(3);
-  } else if (!phoneNumber.startsWith('0')) {
-    phoneNumber = '0' + phoneNumber;
-  }
-  return phoneNumber;
-}
-
-async function getCustomerInfo(phoneNumber) {
-  const formattedNumber = formatPhoneNumber(phoneNumber.replace('@c.us', ''));
-  try {
-    const records = await base('customers').select({
-      filterByFormula: `{Cell}='${formattedNumber}'`
-    }).firstPage();
+    if (!phoneNumber) return '';
     
-    if (records.length > 0) {
-      return records[0].fields;
+    phoneNumber = phoneNumber.replace(/\D/g, '');
+    if (phoneNumber.startsWith('972')) {
+      phoneNumber = '0' + phoneNumber.slice(3);
+    } else if (!phoneNumber.startsWith('0')) {
+      phoneNumber = '0' + phoneNumber;
     }
-    return null;
-  } catch (error) {
-    console.error('Error fetching customer info from Airtable:', error);
-    return null;
+    return phoneNumber;
   }
-}
+
+  async function getCustomerInfo(phoneNumber) {
+    if (!phoneNumber) {
+      console.error('Invalid phone number:', phoneNumber);
+      return null;
+    }
+    
+    const formattedNumber = formatPhoneNumber(phoneNumber.replace('@c.us', ''));
+    try {
+      const records = await base('customers').select({
+        filterByFormula: `{Cell}='${formattedNumber}'`
+      }).firstPage();
+      
+      if (records.length > 0) {
+        return records[0].fields;
+      }
+      return null;
+    } catch (error) {
+      console.error('Error fetching customer info from Airtable:', error);
+      return null;
+    }
+  }
 
 app.get('/api/getLastIncomingMessages', async (req, res) => {
-  try {
-    const response = await axios.get(`${GREENAPI_BASE_URL}/lastIncomingMessages/${GREENAPI_APITOKENINSTANCE}`);
-    const formattedMessages = await Promise.all(response.data.map(async msg => {
-      const senderId = msg.senderId || msg.chatId;
-      if (!senderId) {
-        console.error('Message without senderId or chatId:', msg);
-        return null;
-      }
-      const customerInfo = await getCustomerInfo(senderId);
-      return {
-        type: msg.type,
-        idMessage: msg.idMessage,
-        timestamp: msg.timestamp,
-        typeMessage: msg.typeMessage,
-        chatId: msg.chatId || msg.senderId,
-        senderId: senderId,
-        senderName: customerInfo ? `${customerInfo.First_name} ${customerInfo.Last_name}` : (msg.senderName || 'Unknown'),
-        textMessage: msg.textMessage || msg.caption || 'Non-text message',
-        downloadUrl: msg.downloadUrl,
-        caption: msg.caption,
-        fileName: msg.fileName,
-        extendedTextMessage: msg.extendedTextMessage,
-        customerInfo: customerInfo
-      };
-    }));
-
-    const validMessages = formattedMessages.filter(msg => msg !== null);
-    await kv.set('last_incoming_messages', validMessages, { ex: 300 });
-    res.status(200).json(validMessages);
-  } catch (error) {
-    console.error('Failed to fetch last incoming messages:', error);
-    res.status(500).json({ error: 'Failed to fetch last incoming messages' });
-  }
-});
+    try {
+      const response = await axios.get(`${GREENAPI_BASE_URL}/lastIncomingMessages/${GREENAPI_APITOKENINSTANCE}`);
+      const formattedMessages = await Promise.all(response.data.map(async msg => {
+        let phoneNumber = '';
+        if (msg.chatId) {
+          phoneNumber = msg.chatId.replace('@c.us', '');
+        } else if (msg.senderId) {
+          phoneNumber = msg.senderId.replace('@c.us', '');
+        }
+  
+        if (!phoneNumber) {
+          console.error('Unable to extract phone number from chat:', msg);
+          return null;
+        }
+  
+        const customerInfo = await getCustomerInfo(phoneNumber);
+        
+        return {
+          type: msg.type,
+          idMessage: msg.idMessage,
+          timestamp: msg.timestamp,
+          typeMessage: msg.typeMessage,
+          chatId: msg.chatId || msg.senderId,
+          senderId: msg.senderId,
+          senderName: customerInfo ? `${customerInfo.First_name} ${customerInfo.Last_name}` : (msg.senderName || 'Unknown'),
+          textMessage: msg.textMessage || msg.caption || 'Non-text message',
+          downloadUrl: msg.downloadUrl,
+          caption: msg.caption,
+          fileName: msg.fileName,
+          extendedTextMessage: msg.extendedTextMessage,
+          customerInfo: customerInfo,
+          // Add other fields as necessary
+          jpegThumbnail: msg.jpegThumbnail,
+          isAnimated: msg.isAnimated,
+          isForwarded: msg.isForwarded,
+          forwardingScore: msg.forwardingScore,
+          chatState: msg.chatState,
+          location: msg.location,
+          contact: msg.contact,
+          pollMessageData: msg.pollMessageData,
+          quotedMessage: msg.quotedMessage
+        };
+      }));
+  
+      const validMessages = formattedMessages.filter(msg => msg !== null);
+      await kv.set('last_incoming_messages', validMessages, { ex: 300 });
+      res.status(200).json(validMessages);
+    } catch (error) {
+      console.error('Failed to fetch last incoming messages:', error);
+      res.status(500).json({ error: 'Failed to fetch last incoming messages', details: error.message });
+    }
+  });
+  
 
 app.get('/api/getCustomerInfo', async (req, res) => {
   const { phoneNumber } = req.query;
