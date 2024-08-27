@@ -1,4 +1,3 @@
-// server.js
 import express from 'express';
 import http from 'http';
 import { Server } from 'socket.io';
@@ -59,7 +58,7 @@ async function getCustomerInfo(phoneNumber) {
   }
 }
 
-app.get('/api/getLastIncoming', async (req, res) => {
+app.get('/api/getLastIncomingMessages', async (req, res) => {
   try {
     const response = await axios.get(`${GREENAPI_BASE_URL}/lastIncomingMessages/${GREENAPI_APITOKENINSTANCE}`);
     const formattedMessages = await Promise.all(response.data.map(async msg => {
@@ -71,12 +70,13 @@ app.get('/api/getLastIncoming', async (req, res) => {
         typeMessage: msg.typeMessage,
         chatId: msg.chatId,
         senderId: msg.senderId,
-        senderName: customerInfo ? `${customerInfo.First_name} ${customerInfo.Last_name}` : 'Unknown',
+        senderName: customerInfo ? `${customerInfo.First_name} ${customerInfo.Last_name}` : (msg.senderName || 'Unknown'),
         textMessage: msg.textMessage || msg.caption || 'Non-text message',
         downloadUrl: msg.downloadUrl,
         caption: msg.caption,
         fileName: msg.fileName,
-        extendedTextMessage: msg.extendedTextMessage
+        extendedTextMessage: msg.extendedTextMessage,
+        customerInfo: customerInfo
       };
     }));
 
@@ -88,15 +88,25 @@ app.get('/api/getLastIncoming', async (req, res) => {
   }
 });
 
-app.post('/api/sendMessage', async (req, res) => {
-  const { phoneNumber, message } = req.body;
+app.get('/api/getCustomerInfo', async (req, res) => {
+  const { phoneNumber } = req.query;
   try {
-    if (!phoneNumber) {
-      console.error('Phone number is missing');
-      return res.status(400).json({ error: 'Phone number is required' });
+    const customerInfo = await getCustomerInfo(phoneNumber);
+    res.status(200).json(customerInfo);
+  } catch (error) {
+    console.error('Failed to fetch customer info:', error);
+    res.status(500).json({ error: 'Failed to fetch customer info' });
+  }
+});
+
+app.post('/api/sendMessage', async (req, res) => {
+  const { chatId, message } = req.body;
+  try {
+    if (!chatId) {
+      console.error('Chat ID is missing');
+      return res.status(400).json({ error: 'Chat ID is required' });
     }
 
-    const chatId = `${phoneNumber.replace(/\D/g, '').replace(/^0/, '972')}@c.us`;
     console.log('Sending message to:', chatId);
 
     const response = await axios.post(`${GREENAPI_BASE_URL}/sendMessage/${GREENAPI_APITOKENINSTANCE}`, {
@@ -106,10 +116,10 @@ app.post('/api/sendMessage', async (req, res) => {
     
     io.emit('newMessage', {
       id: response.data.idMessage,
-      sender: 'Me',
-      text: message,
+      type: 'outgoing',
+      textMessage: message,
       timestamp: Math.floor(Date.now() / 1000),
-      chatId: phoneNumber
+      chatId: chatId
     });
 
     res.status(200).json({ success: true, messageId: response.data.idMessage });
@@ -120,14 +130,13 @@ app.post('/api/sendMessage', async (req, res) => {
 });
 
 app.get('/api/getChatHistory', async (req, res) => {
-  const { phoneNumber, limit = 100 } = req.query;
+  const { chatId, count = 50 } = req.query;
   try {
-    if (!phoneNumber) {
-      console.error('Phone number is missing');
-      return res.status(400).json({ error: 'Phone number is required' });
+    if (!chatId) {
+      console.error('Chat ID is missing');
+      return res.status(400).json({ error: 'Chat ID is required' });
     }
 
-    const chatId = `${phoneNumber.replace(/\D/g, '').replace(/^0/, '972')}@c.us`;
     console.log('Fetching chat history for:', chatId);
 
     const cachedHistory = await kv.get(`chat_history:${chatId}`);
@@ -139,16 +148,10 @@ app.get('/api/getChatHistory', async (req, res) => {
 
     const response = await axios.post(`${GREENAPI_BASE_URL}/getChatHistory/${GREENAPI_APITOKENINSTANCE}`, {
       chatId,
-      count: limit
+      count
     });
 
-    const history = response.data.map(msg => ({
-      id: msg.idMessage,
-      sender: msg.type === 'outgoing' ? 'Me' : 'Other',
-      text: msg.textMessage || msg.caption || 'Non-text message',
-      timestamp: msg.timestamp,
-      type: msg.typeMessage
-    }));
+    const history = response.data;
 
     await kv.set(`chat_history:${chatId}`, history, { ex: 600 });
     res.status(200).json(history);
@@ -159,14 +162,13 @@ app.get('/api/getChatHistory', async (req, res) => {
 });
 
 app.post('/api/sendFile', async (req, res) => {
-  const { phoneNumber, fileUrl, caption } = req.body;
+  const { chatId, fileUrl, caption } = req.body;
   try {
-    if (!phoneNumber) {
-      console.error('Phone number is missing');
-      return res.status(400).json({ error: 'Phone number is required' });
+    if (!chatId) {
+      console.error('Chat ID is missing');
+      return res.status(400).json({ error: 'Chat ID is required' });
     }
 
-    const chatId = `${phoneNumber.replace(/\D/g, '').replace(/^0/, '972')}@c.us`;
     console.log('Sending file to:', chatId);
 
     const response = await axios.post(`${GREENAPI_BASE_URL}/sendFileByUrl/${GREENAPI_APITOKENINSTANCE}`, {
@@ -178,10 +180,10 @@ app.post('/api/sendFile', async (req, res) => {
 
     io.emit('newMessage', {
       id: response.data.idMessage,
-      sender: 'Me',
-      text: `File: ${caption || 'Untitled'}`,
+      type: 'outgoing',
+      textMessage: `File: ${caption || 'Untitled'}`,
       timestamp: Math.floor(Date.now() / 1000),
-      chatId: phoneNumber,
+      chatId: chatId,
       fileUrl: fileUrl
     });
 
@@ -202,8 +204,8 @@ app.post('/api/webhook', async (req, res) => {
     
     io.emit('newMessage', {
       id: message.idMessage,
-      sender: 'Other',
-      text: message.textMessage || message.caption || 'Non-text message',
+      type: 'incoming',
+      textMessage: message.textMessage || message.caption || 'Non-text message',
       timestamp: message.timestamp,
       chatId: message.sender,
       senderName: senderInfo ? `${senderInfo.First_name} ${senderInfo.Last_name}` : 'Unknown'
