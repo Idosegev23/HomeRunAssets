@@ -3,17 +3,64 @@ import { Dialog, DialogTitle, DialogContent, DialogActions, Button, TextField, G
 
 const CustomerEditDialog = ({ open, customer, onClose, onSave }) => {
   const [editedCustomer, setEditedCustomer] = useState({});
+  const [errors, setErrors] = useState({});
 
   useEffect(() => {
     setEditedCustomer(customer || {});
+    setErrors({});
   }, [customer]);
+
+  const validateNumber = (value, fieldName) => {
+    if (value === '' || value === null || value === undefined) return true;
+    const num = Number(value);
+    switch (fieldName) {
+      case 'Square_meters':
+      case 'Budget':
+      case 'Cell':
+        return Number.isInteger(num) && num >= 0;
+      case 'Rooms':
+        return num >= 0 && Number.isInteger(num * 10); // Allow one decimal point
+      default:
+        return true;
+    }
+  };
 
   const handleChange = (e) => {
     const { name, value } = e.target;
-    setEditedCustomer(prev => ({ ...prev, [name]: value }));
+    
+    // Convert empty string to undefined for optional number fields
+    const processedValue = value === '' ? undefined : 
+      (e.target.type === 'number' ? Number(value) : value);
+
+    // Validate number fields
+    if (e.target.type === 'number') {
+      if (!validateNumber(value, name)) {
+        setErrors(prev => ({
+          ...prev,
+          [name]: 'ערך לא תקין'
+        }));
+        return;
+      } else {
+        setErrors(prev => {
+          const newErrors = { ...prev };
+          delete newErrors[name];
+          return newErrors;
+        });
+      }
+    }
+
+    setEditedCustomer(prev => ({
+      ...prev,
+      [name]: processedValue
+    }));
   };
 
   const handleSave = async () => {
+    // Check if there are any validation errors
+    if (Object.keys(errors).length > 0) {
+      return;
+    }
+
     try {
       const response = await fetch('/api/dataHandler?resource=customers', {
         method: customer?.id ? 'PUT' : 'POST',
@@ -66,9 +113,13 @@ const CustomerEditDialog = ({ open, customer, onClose, onSave }) => {
               fullWidth
               label="נייד"
               name="Cell"
+              type="number"
               value={editedCustomer.Cell || ''}
               onChange={handleChange}
+              error={!!errors.Cell}
+              helperText={errors.Cell}
               className="filter-input"
+              inputProps={{ min: 0 }}
             />
           </Grid>
           <Grid item xs={12} sm={6}>
@@ -79,7 +130,10 @@ const CustomerEditDialog = ({ open, customer, onClose, onSave }) => {
               type="number"
               value={editedCustomer.Budget || ''}
               onChange={handleChange}
+              error={!!errors.Budget}
+              helperText={errors.Budget}
               className="filter-input"
+              inputProps={{ min: 0 }}
             />
           </Grid>
           <Grid item xs={12} sm={6}>
@@ -90,7 +144,10 @@ const CustomerEditDialog = ({ open, customer, onClose, onSave }) => {
               type="number"
               value={editedCustomer.Rooms || ''}
               onChange={handleChange}
+              error={!!errors.Rooms}
+              helperText={errors.Rooms}
               className="filter-input"
+              inputProps={{ min: 0, step: 0.5 }}
             />
           </Grid>
           <Grid item xs={12} sm={6}>
@@ -101,7 +158,10 @@ const CustomerEditDialog = ({ open, customer, onClose, onSave }) => {
               type="number"
               value={editedCustomer.Square_meters || ''}
               onChange={handleChange}
+              error={!!errors.Square_meters}
+              helperText={errors.Square_meters}
               className="filter-input"
+              inputProps={{ min: 0 }}
             />
           </Grid>
           <Grid item xs={12} sm={6}>
@@ -130,7 +190,11 @@ const CustomerEditDialog = ({ open, customer, onClose, onSave }) => {
         <Button onClick={onClose} color="secondary">
           ביטול
         </Button>
-        <Button onClick={handleSave} color="primary">
+        <Button 
+          onClick={handleSave} 
+          color="primary"
+          disabled={Object.keys(errors).length > 0}
+        >
           שמור
         </Button>
       </DialogActions>
